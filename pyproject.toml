@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deflect"
+version = "0.1.0"
+description = "A support operations agent with a reliability harness."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Abhay Soni" }]
+dependencies = [
+    "langgraph>=1.0,<2",
+    "langgraph-checkpoint-postgres>=3.0,<4",
+    "langchain-core>=1.0,<2",
+    "langchain-ollama>=1.0,<2",
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "pydantic>=2.7,<3",
+    "psycopg[binary]>=3.2,<4",
+    "psycopg-pool>=3.2,<4",
+    "qdrant-client>=1.12,<2",
+    "fastembed>=0.7,<1",
+    "mcp>=2.2,<3",
+    "jsonschema>=4.20",
+    "pytest>=8",
+    "python-dotenv>=1.0",
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp>=1.27",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+hosted = [
+    "langchain-openai>=1.0,<2",
+    "langchain-anthropic>=1.0,<2",
+]
+
+[tool.setuptools.packages.find]
+include = ["agent*", "api*", "data*", "evals*"]
+
+[tool.pytest.ini_options]
+testpaths = ["agent", "api", "data", "evals", "mcp_server"]
+python_files = ["test_*.py"]
+addopts = "-q"
+filterwarnings = ["ignore:Payload indexes have no effect:UserWarning"]
