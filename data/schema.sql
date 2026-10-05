@@ -97,6 +97,53 @@ CREATE UNIQUE INDEX IF NOT EXISTS audit_log_idempotency_uq
   ON audit_log (tool_name, (tool_args->>'idempotency_key'))
   WHERE tool_args ? 'idempotency_key';
 
+CREATE TABLE IF NOT EXISTS policy_docs (
+  doc_id      TEXT        PRIMARY KEY,
+  title       TEXT        NOT NULL,
+  version     INT         NOT NULL,
+  applies_to  TEXT[]      NOT NULL,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+DO $$
+BEGIN
+  ALTER TABLE refunds ADD CONSTRAINT refunds_policy_doc_fk
+    FOREIGN KEY (policy_doc_id) REFERENCES policy_docs (doc_id) NOT VALID;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+CREATE TABLE IF NOT EXISTS tool_requests (
+  idempotency_key  TEXT        PRIMARY KEY,
+  tool_name        TEXT        NOT NULL,
+  order_id         TEXT,
+  result           JSONB,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS return_labels (
+  label_id         TEXT          PRIMARY KEY,
+  order_id         TEXT          NOT NULL UNIQUE REFERENCES orders (order_id),
+  reason           TEXT          NOT NULL CHECK (reason IN ('change_of_mind', 'damaged', 'not_as_described')),
+  fee_inr          NUMERIC(10,2) NOT NULL CHECK (fee_inr >= 0),
+  pickup_by        TIMESTAMPTZ   NOT NULL,
+  idempotency_key  TEXT          NOT NULL UNIQUE,
+  created_at       TIMESTAMPTZ   NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS escalations (
+  escalation_id    TEXT        PRIMARY KEY,
+  ticket_id        TEXT        NOT NULL,
+  order_id         TEXT        REFERENCES orders (order_id),
+  reason           TEXT        NOT NULL,
+  priority         TEXT        NOT NULL CHECK (priority IN ('normal', 'urgent')),
+  summary          TEXT        NOT NULL,
+  status           TEXT        NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  idempotency_key  TEXT        NOT NULL UNIQUE,
+  created_at       TIMESTAMPTZ NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS escalations_status_idx ON escalations (status, created_at);
+
 CREATE TABLE IF NOT EXISTS seed_meta (
   key         TEXT        PRIMARY KEY,
   value       TEXT        NOT NULL,

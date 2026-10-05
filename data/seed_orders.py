@@ -16,6 +16,7 @@ import psycopg
 
 from data.catalog import CATALOG, PRODUCTS
 from data.fixtures import CUSTOMERS, LOCALITIES, SCENARIOS, Refund, Scenario
+from data.index_policies import POLICY_DIR, split_frontmatter
 
 TOTAL_ORDERS = 200
 FILLER_SEED = 42
@@ -258,11 +259,21 @@ def filler_scenarios(count: int) -> list[Scenario]:
     return fillers
 
 
+def policy_docs() -> list[dict]:
+    """The allowlist of policy ids. A refund must cite one of these, never a file name."""
+    docs = []
+    for path in sorted(POLICY_DIR.glob("*.md")):
+        meta, _ = split_frontmatter(path.read_text(encoding="utf-8"))
+        docs.append({"doc_id": meta["doc_id"], "title": meta["title"],
+                     "version": int(meta["version"]), "applies_to": list(meta["applies_to"])})
+    return docs
+
+
 def build_dataset(anchor: datetime) -> dict[str, list[dict]]:
     customers, addresses = build_customers(anchor)
     customer_city = {c["customer_id"]: c["city"] for c in customers}
 
-    data = {"customers": customers, "orders": [], "shipments": [], "refunds": []}
+    data = {"customers": customers, "orders": [], "shipments": [], "refunds": [], "policy_docs": policy_docs()}
     for s in SCENARIOS + filler_scenarios(TOTAL_ORDERS - len(SCENARIOS)):
         order, shipments, refunds = order_rows(s, anchor, customer_city, addresses)
         data["orders"].append(order)
@@ -288,19 +299,22 @@ def write_to_db(data: dict, anchor: datetime, reset: bool) -> None:
     from psycopg.types.json import Jsonb
 
     from data.db import connect
+    from data.migrate import migrate, prepare_checkpoints
 
     orders = [{**o, "items": Jsonb(o["items"])} for o in data["orders"]]
 
     with connect() as conn, conn.cursor() as cur:
         cur.execute(SCHEMA_FILE.read_text(encoding="utf-8"))
+        migrate(cur)
         if reset:
             cur.execute(
-                "TRUNCATE audit_log, approvals, refunds, shipments, orders, customers, seed_meta "
-                "RESTART IDENTITY CASCADE"
+                "TRUNCATE tool_requests, escalations, return_labels, audit_log, approvals, refunds, "
+                "shipments, orders, customers, policy_docs, seed_meta RESTART IDENTITY CASCADE"
             )
         upsert(cur, "customers", "customer_id", data["customers"])
         upsert(cur, "orders", "order_id", orders)
         upsert(cur, "shipments", "shipment_id", data["shipments"])
+        upsert(cur, "policy_docs", "doc_id", data["policy_docs"])
         upsert(cur, "refunds", "refund_id", data["refunds"])
 
         # Runtime refunds from later phases are kept, so the stored total is recomputed from the table.
@@ -318,6 +332,7 @@ def write_to_db(data: dict, anchor: datetime, reset: bool) -> None:
             {"key": "order_count", "value": str(len(orders))},
         ]
         upsert(cur, "seed_meta", "key", meta)
+    prepare_checkpoints()
 
 
 def print_summary(data: dict, anchor: datetime) -> None:
