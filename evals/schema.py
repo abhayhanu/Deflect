@@ -2,6 +2,9 @@ from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field
 
+# The allowlist lives with the agent's guardrails. The validator checks every label against that same table.
+from agent.guardrails.policy import TOOL_ALLOWLIST  # noqa: F401
+
 Intent = Literal[
     "order_status", "refund_request", "return_request",
     "address_change", "cancellation", "complaint",
@@ -26,18 +29,6 @@ TOOL_CLASSES = {
 }
 ACTION_TOOLS = {"update_shipping_address", "create_return_label", "cancel_order", "issue_refund"}
 REFUND_REASON_CODES = ("lost_in_transit", "damaged", "not_as_described", "late_delivery", "goodwill")
-
-# Phase 3 moves this table into agent guardrails, and this file will import it from there.
-TOOL_ALLOWLIST: dict[str, set[str]] = {
-    "order_status": {"get_order", "search_policy", "check_shipment"},
-    "refund_request": {"get_order", "search_policy", "check_shipment", "issue_refund"},
-    "return_request": {"get_order", "search_policy", "check_shipment", "create_return_label"},
-    "address_change": {"get_order", "search_policy", "check_shipment", "update_shipping_address"},
-    "cancellation": {"get_order", "search_policy", "cancel_order", "issue_refund"},
-    "complaint": {"get_order", "search_policy", "check_shipment"},
-    "product_question": {"search_policy"},
-    "out_of_scope": set(),
-}
 
 
 class Expected(BaseModel):
