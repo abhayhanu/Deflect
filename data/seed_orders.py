@@ -308,7 +308,7 @@ def write_to_db(data: dict, anchor: datetime, reset: bool) -> None:
         migrate(cur)
         if reset:
             cur.execute(
-                "TRUNCATE tool_requests, escalations, return_labels, audit_log, approvals, refunds, "
+                "TRUNCATE tool_requests, escalations, return_labels, audit_log, approvals, tickets, refunds, "
                 "shipments, orders, customers, policy_docs, seed_meta RESTART IDENTITY CASCADE"
             )
         upsert(cur, "customers", "customer_id", data["customers"])
