@@ -45,7 +45,8 @@ def load_case(case_id: str) -> dict:
 def summary(node: str, update: dict) -> str:
     if node == "classify":
         c = update["classification"]
-        return f"intent={c.intent} confidence={c.confidence:.2f} order_id={c.order_id}"
+        by = f" by {update['classified_by']}{' as a fallback' if update.get('classifier_fell_back') else ''}"
+        return f"intent={c.intent} confidence={c.confidence:.2f} order_id={c.order_id}{by}"
     if node == "retrieve":
         ids = sorted({p.doc_id for p in update["policies"]})
         return f"policies={ids} order_found={update['order'] is not None}"
@@ -115,12 +116,13 @@ def main() -> int:
         print(f"Policy search is not ready: {str(exc)[:300]}", file=sys.stderr)
         print("Is Qdrant running? Try: docker compose up -d", file=sys.stderr)
         return 1
-    if not args.skip_verify:
-        try:
+    try:
+        RunContext().classifier()
+        if not args.skip_verify:
             RunContext().checker()
-        except (ImportError, ValueError) as exc:
-            print(f"Cannot start the reply checker: {exc}", file=sys.stderr)
-            return 1
+    except (ImportError, ValueError) as exc:
+        print(f"Cannot start the classifier or the reply checker: {exc}", file=sys.stderr)
+        return 1
     tools = connect_tools(pin_clock=not args.real_clock)
     try:
         tools.start()
