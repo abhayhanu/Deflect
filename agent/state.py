@@ -27,6 +27,8 @@ class RetrievedPolicy(BaseModel):
     title: str
     chunk: str
     score: float
+    # True when the section is always shown to the plan and the search did not rank it.
+    pinned: bool = False
 
 
 class Plan(BaseModel):
@@ -71,6 +73,11 @@ class Verification(BaseModel):
     unsupported_claims: list[str]
     verdict: Literal["pass", "retry", "escalate"]
     failed_checks: list[str] = Field(default_factory=list)
+    # Which model read the reply. Empty when a rule failed first and no model was asked.
+    checked_by: str = ""
+    checker_fell_back: bool = False
+    # How likely each sentence is unsupported, when the checker gives a probability.
+    sentence_doubt: dict[str, float] = Field(default_factory=dict)
 
 
 class TicketState(TypedDict, total=False):
@@ -84,6 +91,11 @@ class TicketState(TypedDict, total=False):
     # Written by the nodes
     redacted_message: str
     classification: Classification
+    # Who classified. Kept out of Classification, which is the schema a chat model fills in.
+    classified_by: str
+    classifier_fell_back: bool
+    # How likely each intent is, when the classifier gives a probability.
+    intent_probabilities: dict[str, float]
     policies: list[RetrievedPolicy]
     order: dict | None
     customer_history: dict | None
@@ -104,3 +116,4 @@ class TicketState(TypedDict, total=False):
     terminal_reason: str | None
     cost_inr: float
     trace_id: str
+    trace_parent: str

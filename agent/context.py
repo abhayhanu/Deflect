@@ -2,11 +2,12 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from agent import tracing
 from agent.approvals import ApprovalStore, PostgresApprovals
 from agent.guardrails.audit import AuditEntry, AuditLog, PostgresAuditLog, summarise_read
 from agent.guardrails.redact import redact
 from agent.mcp_client import MCPClient, ToolOutcome, TransportError, shared_client
-from agent.providers import ChatModel, Usage, get_chat_model
+from agent.providers import ChatModel, Decider, Usage, get_chat_model, get_checker, get_classifier
 from agent.state import TicketState
 
 
@@ -19,6 +20,8 @@ class RunContext:
     """
 
     model: ChatModel | None = None
+    check_model: ChatModel | Decider | None = None
+    classify_model: ChatModel | Decider | None = None
     now: datetime | None = None
     rehydration: dict[str, str] = field(default_factory=dict)
     usage: Usage = field(default_factory=Usage)
@@ -27,9 +30,14 @@ class RunContext:
     approvals: ApprovalStore | None = None
 
     def chat_model(self) -> ChatModel:
-        if self.model is None:
-            self.model = get_chat_model("agent")
-        return self.model
+        return self.model or get_chat_model("agent")
+
+    def checker(self) -> ChatModel | Decider:
+        # A run that was handed its own model, as every test is, checks and classifies with it too.
+        return self.check_model or self.model or get_checker(get_chat_model("agent"))
+
+    def classifier(self) -> ChatModel | Decider:
+        return self.classify_model or self.model or get_classifier(get_chat_model("agent"))
 
     def mcp(self) -> MCPClient:
         if self.tools is None:
@@ -68,6 +76,8 @@ class AuditedTools:
     def __init__(self, inner: MCPClient, audit: AuditLog, ticket_id: str, trace_id: str):
         self.inner, self.audit = inner, audit
         self.ticket_id, self.trace_id = ticket_id, trace_id
+        # Retrieve calls tools from worker threads, which start with no trace of their own.
+        self.parent = tracing.current_context()
 
     def tools(self):
         return self.inner.tools()
@@ -77,15 +87,22 @@ class AuditedTools:
 
     def call(self, name: str, args: dict, authorized_by: str = "policy", approver_id: str | None = None,
              logged_args: dict | None = None) -> ToolOutcome:
-        """logged_args is what goes in the log when args hold real personal details."""
+        """logged_args is what goes in the log and the trace when args hold real personal details."""
         started = time.perf_counter()
-        try:
-            outcome = self.inner.call(name, args)
-        except TransportError as exc:
-            self.write(name, logged_args or args, authorized_by, approver_id, started, error=f"transport_error: {exc}")
-            raise
-        result = summarise_read(outcome.result) if self.read_only(name) else outcome.result
-        self.write(name, logged_args or args, authorized_by, approver_id, started, result=result, error=outcome.error)
+        shown = logged_args or args
+        with tracing.span(f"tool {name}", "tool", parent=self.parent, **{
+                "deflect.tool_name": name, "deflect.ticket_id": self.ticket_id, "deflect.authorized_by": authorized_by,
+                "deflect.approver_id": approver_id, "langfuse.observation.input": shown, "input.value": shown}) as span:
+            try:
+                outcome = self.inner.call(name, args)
+            except TransportError as exc:
+                self.write(name, shown, authorized_by, approver_id, started, error=f"transport_error: {exc}")
+                tracing.put(span, **{"deflect.tool_error": f"transport_error: {exc}"})
+                raise
+            result = summarise_read(outcome.result) if self.read_only(name) else outcome.result
+            self.write(name, shown, authorized_by, approver_id, started, result=result, error=outcome.error)
+            tracing.put(span, **{"deflect.tool_error": outcome.error, "deflect.attempts": outcome.attempts,
+                                 "langfuse.observation.output": result, "output.value": result})
         return outcome
 
     def write(self, name, args, authorized_by, approver_id, started, result=None, error=None) -> None:

@@ -2,7 +2,8 @@
 
 Phase 3 flow:
 
-    redact, classify, then escalate if the ticket is out of scope or unclear
+    redact, classify, then escalate if the ticket is out of scope or unclear, or if the message
+    itself is one that pol_escalation sends to a person
     otherwise retrieve, plan, and then
         answer    draft, verify
         act       guardrail, which allows, pauses for a human, or denies
@@ -25,7 +26,7 @@ from langgraph.runtime import Runtime
 
 from agent import tracing
 from agent.context import RunContext
-from agent.guardrails.policy import classification_escalation, plan_outcome
+from agent.guardrails.policy import early_escalation, plan_outcome
 from agent.nodes.act import act
 from agent.nodes.approval import await_approval
 from agent.nodes.classify import classify
@@ -75,7 +76,7 @@ def logged(name: str, node):
 
 
 def route_after_classify(state: TicketState) -> str:
-    return "escalate" if classification_escalation(state.get("classification")) else "retrieve"
+    return "escalate" if early_escalation(state) else "retrieve"
 
 
 def route_after_plan(state: TicketState) -> str:

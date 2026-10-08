@@ -10,7 +10,9 @@ from agent.state import RetrievedPolicy, TicketState
 
 log = logging.getLogger("agent.nodes.retrieve")
 
-TOP_K = 5
+# How many sections the search returns. It was 5 until v9. At 5 the search missed a required
+# policy for 2 of 114 golden tickets even with the escalation policy pinned, and at 8 for none.
+TOP_K = 8
 QUERY_LIMIT = 4000
 
 
