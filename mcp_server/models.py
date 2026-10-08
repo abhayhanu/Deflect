@@ -105,6 +105,8 @@ class PolicyHit(BaseModel):
     title: str
     chunk: str
     score: float
+    # True when the section is here because its policy is pinned, not because the search ranked it.
+    pinned: bool = False
 
 
 class RefundOut(BaseModel):

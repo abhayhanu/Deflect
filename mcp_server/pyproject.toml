@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deflect-mcp"
+version = "0.1.0"
+description = "An MCP server for online shop support: orders, policies, refunds, returns, cancellations and escalations, with idempotent writes."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Abhay Soni" }]
+keywords = ["mcp", "model context protocol", "customer support", "agents"]
+dependencies = [
+    "mcp>=2.2,<3",
+    "psycopg[binary]>=3.2,<4",
+    "pydantic>=2.12,<3",
+    "qdrant-client>=1.12,<2",
+    "fastembed>=0.7,<1",
+    "python-dotenv>=1.0",
+    "uvicorn>=0.31",
+]
+
+[project.scripts]
+deflect-mcp = "mcp_server.server:main"
+
+[tool.setuptools]
+package-dir = { "mcp_server" = "." }
+packages = ["mcp_server", "mcp_server.tools"]
