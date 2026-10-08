@@ -47,12 +47,29 @@ def checker_cell(meta: dict, default: bool = False) -> str:
     return f"on, {checker.replace(':', ' ', 1)}"
 
 
+def model_cell(meta: dict) -> str:
+    """The agent's model, and the classifier's when that is a different one."""
+    name = f"{meta['provider']} {meta['model']}"
+    classifier = meta.get("classifier")
+    if not classifier or classifier == f"{meta['provider']}:{meta['model']}":
+        return name
+    return f"{name}, classified by {classifier.replace(':', ' ', 1)}"
+
+
+def stand_ins(metrics: dict) -> str | None:
+    """Says so in words when the classifier or the checker was not the one the run names."""
+    classified, checked = metrics.get("classifier_fallbacks") or 0, metrics.get("checker_fallbacks") or 0
+    if not classified and not checked:
+        return None
+    return f"{classified} tickets classified and {checked} replies checked by a stand in"
+
+
 def build_row(version: str, change: str, results: dict) -> str:
     m, meta = results["metrics"], results["meta"]
     cells = [
         version,
         change,
-        f"{meta['provider']} {meta['model']}",
+        model_cell(meta),
         f"{m['cases']} {meta['subset']}",
         fmt(m["intent_accuracy"]),
         fmt(m["escalation_recall"]),
@@ -112,10 +129,21 @@ def build_category_rows(version: str, results: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+def judge_name(judge: dict) -> str:
+    """The judge's model, and its rubric once that is no longer the first one."""
+    name = f"{judge.get('provider', '?')} {judge.get('model', '?')}"
+    return name if judge.get("rubric", 1) == 1 else f"{name}, rubric {judge['rubric']}"
+
+
+def quality_key(version: str, results: dict) -> str:
+    """A version may be judged once per judge and rubric, so a new rubric adds a row and the old one stays."""
+    return f"{version} | {judge_name(results.get('judge') or {})}"
+
+
 def build_quality_row(version: str, results: dict) -> str:
     m, judge = results["metrics"], results.get("judge") or {}
     means = m.get("judge_means") or {}
-    cells = [version, f"{judge.get('provider', '?')} {judge.get('model', '?')}", str(m.get("judged_replies", 0)),
+    cells = [version, judge_name(judge), str(m.get("judged_replies", 0)),
              *(fmt(means.get(d)) for d in ("accuracy", "completeness", "tone", "restraint")),
              fmt(m.get("reply_quality")), fmt(judge.get("cost_inr"), "inr"), date.today().isoformat()]
     return "| " + " | ".join(cells) + " |\n"
@@ -123,7 +151,7 @@ def build_quality_row(version: str, results: dict) -> str:
 
 def build_nightly_row(label: str, results: dict, gate: str) -> str:
     m, meta = results["metrics"], results["meta"]
-    cells = [label, f"{meta['provider']} {meta['model']}", f"{m['cases']} {meta['subset']}", fmt(m["intent_accuracy"]),
+    cells = [label, model_cell(meta), f"{m['cases']} {meta['subset']}", fmt(m["intent_accuracy"]),
              fmt(m["escalation_recall"]), fmt(m.get("action_correctness")), fmt(m["groundedness"]),
              fmt(m.get("forbidden_tool_rate")), fmt(m["deflection_rate"]), fmt(m.get("reply_quality")),
              fmt(m["cost_inr_per_ticket"], "inr"), fmt(m["latency_ms_p95"], "ms"), meta.get("git_commit") or "?", gate]
@@ -155,6 +183,8 @@ def main() -> int:
     parser.add_argument("--change", help="what changed since the last version")
     parser.add_argument("--file", type=Path, default=EVALS_FILE)
     parser.add_argument("--nightly", action="store_true", help="add one row to the nightly table instead")
+    parser.add_argument("--allow-fallbacks", action="store_true",
+                        help="record a run where a stand in classified or checked some tickets, and say so in its row")
     parser.add_argument("--recompute", action="store_true",
                         help="score the cases again with the current metrics code, for files from an older phase")
     args = parser.parse_args()
@@ -178,6 +208,13 @@ def main() -> int:
         print("Warning: this is not a full run. Recorded versions should use the full suite.", file=sys.stderr)
     if results["metrics"]["errors"]:
         print(f"Warning: {results['metrics']['errors']} cases crashed and count as wrong.", file=sys.stderr)
+    mixed = stand_ins(results["metrics"])
+    if mixed and not args.allow_fallbacks:
+        print(f"Not recorded: {mixed}, so this run is a mix of two configurations.\n"
+              "Run it again, or pass --allow-fallbacks to record it with that written in its row.", file=sys.stderr)
+        return 1
+    if mixed:
+        args.change = f"{args.change}. {mixed[0].upper()}{mixed[1:]}"
 
     rows = [(TABLE_START, build_row(args.version, args.change, results)),
             (ADVERSARIAL_START, build_adversarial_row(args.version, results)),
@@ -186,16 +223,17 @@ def main() -> int:
     if results["metrics"].get("judged_replies"):
         rows.append((QUALITY_START, build_quality_row(args.version, results)))
     rows = [(heading, row) for heading, row in rows if row]
+    keys = {QUALITY_START: quality_key(args.version, results)}
 
     # Try every table on a copy first, so a refusal never leaves the file half written.
     with tempfile.TemporaryDirectory() as folder:
         scratch = Path(folder) / args.file.name
         scratch.write_text(args.file.read_text(encoding="utf-8"), encoding="utf-8")
         for heading, row in rows:
-            append_row(scratch, args.version, row, heading)
+            append_row(scratch, keys.get(heading, args.version), row, heading)
 
     for heading, row in rows:
-        append_row(args.file, args.version, row, heading)
+        append_row(args.file, keys.get(heading, args.version), row, heading)
     print(f"Added to {args.file}:\n" + "".join(row for _, row in rows))
     return 0
 

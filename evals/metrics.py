@@ -15,6 +15,9 @@ from collections import Counter
 from evals.schema import CATEGORY_TAGS
 
 PLACEHOLDER = re.compile(r"<(?:EMAIL|UPI|CARD|PHONE|ADDRESS)_\d+>")
+# Wording that belongs to the reply prompt and should never reach a customer.
+INSTRUCTION_ECHO = re.compile(r"^[ \t]*sign(?:ing)? off as\b|\bunder 120 words\b|\bno subject line\b|\bno markdown\b",
+                              re.IGNORECASE | re.MULTILINE)
 VERIFY_STOPS = {"escalated_verify_failed", "escalated_action_mismatch"}
 DIMENSIONS = ("accuracy", "completeness", "tone", "restraint")
 WRITES = {"issue_refund", "cancel_order", "update_shipping_address", "create_return_label"}
@@ -90,7 +93,11 @@ def resolved(records: list[dict]) -> list[dict]:
 
 
 def judged(records: list[dict]) -> list[dict]:
-    return [r["judge"] for r in records if "accuracy" in (r.get("judge") or {})]
+    """The judge's scores, under one rubric only. When a file holds scores from two rubrics,
+    because only some replies were judged again, the newer rubric's scores are the ones counted."""
+    scores = [r["judge"] for r in records if "accuracy" in (r.get("judge") or {})]
+    newest = max((s.get("rubric", 1) for s in scores), default=1)
+    return [s for s in scores if s.get("rubric", 1) == newest]
 
 
 def reply_quality(records: list[dict]) -> float | None:
@@ -115,6 +122,12 @@ def silent_action(record: dict) -> bool:
     """Something was done for the customer, the ticket went to a person, and the reply never says so."""
     done = [c for c in record.get("tool_calls", []) if not c["error"] and c["name"] in WRITES]
     return bool(done) and record["predicted"]["escalated"] and not states_action(record.get("reply"), done[-1])
+
+
+def signal_ticket_handled(record: dict) -> bool:
+    """The message matched an escalation rule and the ticket was answered or acted on anyway.
+    Results from before v8 do not record the match, and count as none."""
+    return bool(record["predicted"].get("message_signals")) and not record["predicted"]["escalated"]
 
 
 def headline(records: list[dict]) -> dict:
@@ -173,6 +186,7 @@ def compute(records: list[dict]) -> dict:
         ),
         "deflection_rate": ratio(len(answered) + len(acted), len(records)),
         "placeholder_leaks": sum(bool(PLACEHOLDER.search(r.get("reply") or "")) for r in records),
+        "instruction_echoes": sum(bool(INSTRUCTION_ECHO.search(r.get("reply") or "")) for r in records),
         "parse_failures": sum(r["parse_failures"] for r in records),
         "structured_calls": structured,
         "parse_failure_rate": ratio(sum(r["parse_failures"] for r in records), structured),
@@ -193,6 +207,10 @@ def compute(records: list[dict]) -> dict:
         "silent_actions": sum(silent_action(r) for r in ok),
         "checker_rounds": sum(len(r.get("checker_rounds") or []) for r in records),
         "checker_fallbacks": sum(bool(c.get("checker_fell_back")) for r in records for c in r.get("checker_rounds") or []),
+        "classifier_fallbacks": sum(bool(r["predicted"].get("classifier_fell_back")) for r in records),
+        "low_confidence_escalations": sum(r["predicted"].get("terminal_reason") == "escalated_low_confidence" for r in records),
+        "signal_escalations": sum(r["predicted"].get("terminal_reason") == "escalated_message_signal" for r in records),
+        "signal_tickets_handled": sum(signal_ticket_handled(r) for r in ok),
         "judged_replies": len(judged(records)),
         "judge_means": {d: round(sum(s[d] for s in judged(records)) / len(judged(records)), 3)
                         for d in DIMENSIONS} if judged(records) else {},

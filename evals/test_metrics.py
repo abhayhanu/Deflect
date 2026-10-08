@@ -158,3 +158,32 @@ def test_report_fills_every_table_or_none(tmp_path, records, monkeypatch):
     with pytest.raises(SystemExit):
         report.main()
     assert evals_md.read_text(encoding="utf-8") == before
+
+
+def test_a_ticket_whose_own_words_call_for_a_person_must_never_be_handled():
+    answered = record("g1", "order_status", "complaint", False, True, ["pol_a"], ["pol_a"])
+    answered["predicted"]["message_signals"] = [2]
+    stopped = record("g2", "complaint", "complaint", True, True)
+    stopped["predicted"].update(message_signals=[1], terminal_reason="escalated_message_signal")
+    older = record("g3", "order_status", "order_status", False, False, ["pol_a"], ["pol_a"])
+
+    m = compute([answered, stopped, older])
+    assert (m["signal_tickets_handled"], m["signal_escalations"]) == (1, 1)
+
+    from evals.gate import breaches
+
+    assert any("signal_tickets_handled" in line for line in breaches(m))
+    assert not any("signal_tickets_handled" in line for line in breaches(compute([stopped, older])))
+
+
+def test_a_reply_that_repeats_its_own_instructions_is_counted():
+    echoed = record("g1", "order_status", "order_status", False, False, ["pol_a"], ["pol_a"])
+    echoed["reply"] = "Hi,\n\nIt is on its way.\n\nSign off as Deflect Support."
+    clean = record("g2", "order_status", "order_status", False, False, ["pol_a"], ["pol_a"])
+    clean["reply"] = "Hi,\n\nPlease sign off as soon as the parcel arrives.\n\nDeflect Support"
+    m = compute([echoed, clean])
+    assert m["instruction_echoes"] == 1
+
+    from evals.gate import breaches
+
+    assert any("instruction_echoes" in line for line in breaches(m))

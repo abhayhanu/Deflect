@@ -30,10 +30,11 @@ from agent import tracing
 from agent.approvals import decide_and_resume
 from agent.context import RunContext
 from agent.graph import build_graph, memory_checkpointer
+from agent.guardrails.policy import escalation_signals
 from agent.mcp_client import MCPClient, TransportError
 from agent.mcp_client import connect as connect_tools
 from agent.nodes.verify import TEMPLATE_SLOT, unbacked_claims, wrong_timelines
-from agent.providers import DEFAULT_MODELS, checker_name, get_chat_model, get_checker
+from agent.providers import DEFAULT_MODELS, checker_name, classifier_name, get_chat_model, get_checker, get_classifier
 from data.db import connect
 from data.index_policies import ensure_indexed
 from data.migrate import pending as pending_migrations
@@ -53,6 +54,9 @@ def load_cases(subset: str, only: list[str] | None = None) -> list[GoldenCase]:
     cases = [GoldenCase.model_validate_json(line) for line in GOLDEN_FILE.read_text(encoding="utf-8").splitlines() if line.strip()]
     if only:
         return [c for c in cases if c.case_id in only]
+    if subset == "escalation":
+        # Every ticket that must end with a person. Small enough to run several times over.
+        return [c for c in cases if c.expected.must_escalate]
     return [c for c in cases if subset == "full" or subset in c.tags]
 
 
@@ -66,18 +70,21 @@ def reply_checks(final: dict) -> dict:
             "wrong_timelines": wrong_timelines(final["draft"], final)}
 
 
-def sections(final: dict) -> list[str]:
-    """Which section of which policy retrieval returned, so a checker verdict can be read
-    against exactly what the checker saw."""
+def sections(final: dict, pinned_only: bool = False) -> list[str]:
+    """Which section of which policy the plan was shown, so a checker verdict can be read
+    against exactly what the checker saw. With pinned_only, just the sections that were there
+    because their policy is pinned and the search had not ranked them."""
     found = []
     for p in final.get("policies", []):
+        if pinned_only and not p.pinned:
+            continue
         heading = SECTION.search(p.chunk)
         found.append(f"{p.doc_id}#{heading.group(1).strip() if heading else '?'}")
     return found
 
 
 def outcome(case: GoldenCase, final: dict, ctx: RunContext, latency_ms: int, error: str | None,
-            approvals: list[dict], rounds: list[dict] | None = None) -> dict:
+            approvals: list[dict], rounds: list[dict] | None = None, plans: list[dict] | None = None) -> dict:
     c = final.get("classification")
     plan = final.get("plan")
     guard = final.get("guardrail")
@@ -100,12 +107,18 @@ def outcome(case: GoldenCase, final: dict, ctx: RunContext, latency_ms: int, err
             "intent": c.intent if c else None,
             "confidence": c.confidence if c else None,
             "order_id": c.order_id if c else None,
+            "classified_by": final.get("classified_by"),
+            "classifier_fell_back": bool(final.get("classifier_fell_back")),
+            "intent_probabilities": final.get("intent_probabilities") or {},
             "decision": "escalate" if escalated else (plan.decision if plan else None),
             "escalated": escalated,
             "cites": plan.cites if plan else [],
             "retrieved_ids": sorted({p.doc_id for p in final.get("policies", [])}),
             "retrieved_sections": sections(final),
+            "pinned_sections": sections(final, pinned_only=True),
             "terminal_reason": final.get("terminal_reason"),
+            # The pol_escalation rules the message itself matches. Such a ticket must end with a person.
+            "message_signals": [s.rule for s in escalation_signals(case.raw_message)],
             "plan_decision": plan.decision if plan else None,
             "escalation_reason": plan.escalation_reason if plan else None,
             "rationale": plan.rationale if plan else None,
@@ -115,11 +128,14 @@ def outcome(case: GoldenCase, final: dict, ctx: RunContext, latency_ms: int, err
              "authorized_by": t.authorized_by, "approver_id": t.approver_id}
             for t in final.get("tool_calls", [])
         ],
+        # The order as retrieve read it, before any action. It holds no personal details.
+        "order": final.get("order"),
         "guardrail": guard.model_dump(exclude={"action_key"}) if guard else None,
         "approval": {"requested": bool(approvals), "rounds": approvals,
                      "decision": approvals[-1]["decision"] if approvals else None},
         "verification": check.model_dump() if check else None,
         "checker_rounds": rounds or [],
+        "plan_rounds": plans or [],
         "retry_count": final.get("retry_count", 0),
         "loop_count": final.get("loop_count", 0),
         "escalation_case": (final.get("escalation") or {}).get("case"),
@@ -144,10 +160,22 @@ def approver_says_yes(mode: str, case: GoldenCase, request: dict) -> bool:
             and all(same_value(v, request["tool_args"].get(k)) for k, v in (expected.tool_args or {}).items()))
 
 
-def checker_rounds(graph, config: dict) -> list[dict]:
+def plan_rounds(history: list) -> list[dict]:
+    """Every plan the ticket made, oldest first. A reply the checker sends back can lead to a
+    second plan, and the first one is what the planner chose with nothing to correct it."""
+    rounds = []
+    for before, after in zip(history, history[1:]):
+        made = after.values.get("plan")
+        if before.next == ("plan",) and made is not None:
+            rounds.append({"decision": made.decision, "tool_name": made.tool_name,
+                           "tool_args": {k: v for k, v in (made.tool_args or {}).items() if k != "idempotency_key"},
+                           "cites": made.cites, "escalation_reason": made.escalation_reason})
+    return rounds
+
+
+def checker_rounds(history: list) -> list[dict]:
     """Every verdict the checker gave, oldest first. The state only keeps the last one, and a
     reply that passed on its third try says nothing about what was wrong with the first two."""
-    history = list(graph.get_state_history(config))[::-1]
     rounds = []
     for before, after in zip(history, history[1:]):
         check = after.values.get("verification")
@@ -185,7 +213,8 @@ def run_case(graph, tools: MCPClient, case: GoldenCase, anchor: datetime, run_id
         final = graph.get_state(config).values
         run.finish(final)
     latency_ms = round((time.perf_counter() - started) * 1000)
-    return outcome(case, final, ctx, latency_ms, error, approvals, checker_rounds(graph, config))
+    history = list(graph.get_state_history(config))[::-1]
+    return outcome(case, final, ctx, latency_ms, error, approvals, checker_rounds(history), plan_rounds(history))
 
 
 def reseed(anchor: str | None = None) -> None:
@@ -202,6 +231,20 @@ def reseed(anchor: str | None = None) -> None:
     print(f"Reseeded the database, anchor {anchor:%Y-%m-%d %H:%M} UTC")
 
 
+def warn_about_stand_ins(records: list[dict]) -> None:
+    """A run where the classifier or the checker dropped out part way is a mix of two
+    configurations. It still finishes, so this says it where it cannot be missed."""
+    classified = [r["case_id"] for r in records if r["predicted"].get("classifier_fell_back")]
+    checked = [r["case_id"] for r in records if any(c.get("checker_fell_back") for c in r.get("checker_rounds") or [])]
+    if not classified and not checked:
+        return
+    print(f"\nWARNING  The agent's own model stood in for the classifier on {len(classified)} tickets and for the "
+          f"checker on {len(checked)}.", file=sys.stderr)
+    print(f"  classifier: {' '.join(classified) or 'none'}\n  checker:    {' '.join(checked) or 'none'}", file=sys.stderr)
+    print("  This run mixes two configurations. The gate fails it and the report will not record it. "
+          "Find out why the service was unreachable, then run again.", file=sys.stderr)
+
+
 def git_commit() -> str | None:
     try:
         return subprocess.run(["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
@@ -211,7 +254,7 @@ def git_commit() -> str | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run the Deflect eval suite.")
-    parser.add_argument("--subset", choices=["smoke", "full", "adversarial", "regression"], default="smoke")
+    parser.add_argument("--subset", choices=["smoke", "full", "adversarial", "regression", "escalation"], default="smoke")
     parser.add_argument("--provider", choices=list(DEFAULT_MODELS), help="overrides DEFLECT_PROVIDER for this run")
     parser.add_argument("--model", help="overrides DEFLECT_MODEL for this run")
     parser.add_argument("--case", action="append", help="run only this case id, can be repeated")
@@ -222,6 +265,7 @@ def main() -> int:
                                          "2026-10-01T10:00:00+00:00. Defaults to DEFLECT_SEED_ANCHOR, then to the current time")
     parser.add_argument("--skip-verify", action="store_true", help="leave the checker out, to record the guardrails alone")
     parser.add_argument("--checker", help="overrides DEFLECT_CHECKER_PROVIDER for this run. agent means the agent's own model")
+    parser.add_argument("--classifier", help="overrides DEFLECT_CLASSIFIER_PROVIDER for this run. agent means the agent's own model")
     parser.add_argument("--approver", choices=["label", "approve", "deny"], default="label",
                         help="how the simulated person answers approval requests")
     parser.add_argument("-v", "--verbose", action="store_true")
@@ -238,13 +282,17 @@ def main() -> int:
     if args.checker:
         os.environ["DEFLECT_CHECKER_PROVIDER"] = "" if args.checker == "agent" else args.checker
         os.environ["DEFLECT_CHECKER_MODEL"] = ""
+    if args.classifier:
+        os.environ["DEFLECT_CLASSIFIER_PROVIDER"] = "" if args.classifier == "agent" else args.classifier
+        os.environ["DEFLECT_CLASSIFIER_MODEL"] = ""
     model = get_chat_model("agent")
-    if not args.skip_verify:
-        try:
+    try:
+        get_classifier(model)
+        if not args.skip_verify:
             get_checker(model)
-        except (ImportError, ValueError) as exc:
-            print(f"Cannot start the reply checker: {exc}", file=sys.stderr)
-            return 2
+    except (ImportError, ValueError) as exc:
+        print(f"Cannot start the classifier or the reply checker: {exc}", file=sys.stderr)
+        return 2
 
     if args.reseed:
         reseed(args.anchor)
@@ -278,7 +326,7 @@ def main() -> int:
     except ValueError as exc:
         print(f"Tracing is off: {exc}", file=sys.stderr)
         backend = tracing.setup("none")
-    print(f"Running {len(cases)} cases on {model.provider}:{model.name} {checker}, "
+    print(f"Running {len(cases)} cases on {model.provider}:{model.name}, classified by {classifier_name(model)}, {checker}, "
           f"clock pinned to {anchor:%Y-%m-%d %H:%M} UTC, tracing to {backend}")
 
     records = []
@@ -313,6 +361,7 @@ def main() -> int:
             "git_commit": git_commit(),
             "verify": not args.skip_verify,
             "checker": None if args.skip_verify else checker_name(model),
+            "classifier": classifier_name(model),
             "trace_backend": backend,
             "approver": args.approver,
         },
@@ -329,6 +378,7 @@ def main() -> int:
     for tag, numbers in metrics["by_category"].items():
         print(f"  {tag:<26} " + ", ".join(f"{k} {v}" for k, v in numbers.items()))
     print(f"\nWrote {args.out}")
+    warn_about_stand_ins(records)
     return 0
 
 
