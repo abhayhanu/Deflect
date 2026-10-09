@@ -19,8 +19,9 @@ from evals.report import EVALS_FILE, checker_cell, fmt, model_cell
 
 START = "<!-- model comparison start -->"
 END = "<!-- model comparison end -->"
-HEADER = ("| Configuration | Cases | Checker | Intent acc | Decision acc | Esc. recall | Action correct | Forbidden tool rate "
-          "| Deflection | Reply quality | Parse fail rate | Cost per ticket | Latency p50 | Latency p95 |")
+HEADER = ("| Configuration | Cases | Checker | Intent acc | Decision acc | Esc. recall | Esc. precision | Grounded "
+          "| Action correct | Forbidden tool rate | Deflection | Reply quality | Parse fail rate | Cost per ticket "
+          "| Latency p50 | Latency p95 |")
 
 
 def labelled(argument: str) -> tuple[str | None, Path]:
@@ -35,7 +36,8 @@ def row(results: dict, label: str | None = None) -> str:
     m, meta = results["metrics"], results["meta"]
     cells = [model_cell(meta) + (f", {label}" if label else ""), f"{m['cases']} {meta['subset']}",
              checker_cell(meta, default=True), fmt(m["intent_accuracy"]), fmt(m["decision_accuracy"]),
-             fmt(m["escalation_recall"]), fmt(m.get("action_correctness")), fmt(m.get("forbidden_tool_rate")),
+             fmt(m["escalation_recall"]), fmt(m.get("escalation_precision")), fmt(m.get("groundedness")),
+             fmt(m.get("action_correctness")), fmt(m.get("forbidden_tool_rate")),
              fmt(m["deflection_rate"]), fmt(m.get("reply_quality")), fmt(m["parse_failure_rate"]),
              fmt(m["cost_inr_per_ticket"], "inr"), fmt(m["latency_ms_p50"], "ms"), fmt(m["latency_ms_p95"], "ms")]
     return "| " + " | ".join(cells) + " |"

@@ -26,7 +26,7 @@ export function Metrics() {
   const { data, error, loading } = useLoad(api.metrics, []);
   if (loading) return <p className="muted">Loading the eval history.</p>;
   if (!data) return <Problem error={error} />;
-  const latest = data.versions[data.versions.length - 1];
+  const later = data.comparison_versions;
 
   return (
     <section>
@@ -35,34 +35,36 @@ export function Metrics() {
         Every number here comes from running the same 120 labelled tickets through the agent. A version is one full run, and a row is never edited
         after it is recorded, so the weak early rows stay.
       </p>
-      {!latest && <Empty>No version has been recorded yet.</Empty>}
-      {latest && (
+      {!data.latest && <Empty>No version has been recorded yet.</Empty>}
+      {data.latest && (
         <>
           <h2>
-            The ten targets, as of {latest.version} <span className="muted">on {latest.model}</span>
+            The ten targets, as of {data.latest} <span className="muted">on {data.latest_model}</span>
           </h2>
-          <table className="grid">
-            <thead>
-              <tr>
-                <th>Metric</th>
-                <th>Target</th>
-                <th className="num">{latest.version}</th>
-                <th>Met</th>
-                <th>In CI</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.targets.map((target) => (
-                <tr key={target.metric}>
-                  <td>{target.label}</td>
-                  <td>{target.target}</td>
-                  <td className="num">{target.shown}</td>
-                  <td>{met(target)}</td>
-                  <td className="muted">{target.ci}</td>
+          <div className="scroll">
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Target</th>
+                  <th className="num">{data.latest}</th>
+                  <th>Met</th>
+                  <th>In CI</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {data.targets.map((target) => (
+                  <tr key={target.metric}>
+                    <td>{target.label}</td>
+                    <td>{target.target}</td>
+                    <td className="num">{target.shown}</td>
+                    <td>{met(target)}</td>
+                    <td className="muted">{target.ci}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           <h2>Version history</h2>
           <LineChart versions={data.versions} series={SERIES} />
@@ -101,6 +103,20 @@ export function Metrics() {
               </tbody>
             </table>
           </div>
+        </>
+      )}
+
+      {later.length > 0 && (
+        <>
+          <h2>
+            Versions {later[0].version} to {later[later.length - 1].version}{" "}
+            <span className="muted">on {later[later.length - 1].model}</span>
+          </h2>
+          <p className="muted">
+            These versions ran on another setup, so they have a chart of their own and each is read against the one before it. Their rows are in the
+            table below.
+          </p>
+          <LineChart versions={later} series={SERIES} />
         </>
       )}
 

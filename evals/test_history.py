@@ -1,4 +1,7 @@
-from evals.history import history, in_ci, met, number, table_after, versions
+from evals import compare
+from evals.history import (CATEGORY_COLUMNS, VERSION_COLUMNS, cells, comparison_versions, history, in_ci, met,
+                           newest, number, table_after, versions)
+from evals.metrics import TARGETS
 
 TEXT = """# Evals
 
@@ -20,6 +23,18 @@ Words after it.
 | v1 | all | 120 | 0.39 | 0.31 | n/a |
 | v1 | adversarial | 18 | 0.61 | 0.11 | n/a |
 | v2 | all | 120 | 0.53 | 0.42 | 4.20 |
+"""
+
+COMPARED = """
+## Model comparison
+
+| Configuration | Cases | Esc. recall | Esc. precision | Grounded | Deflection | Cost per ticket | Latency p95 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| ollama qwen2.5:7b | 120 full | 0.90 | 0.29 | 1.00 | 0.22 | Rs 0.00 | 437.4 s |
+| gemini flash, before v8 | 120 full | 0.90 | 0.56 | 1.00 | 0.60 | Rs 0.15 | 5.4 s |
+| gemini flash, v8 | 120 full | 0.93 | 0.60 | 1.00 | 0.61 | Rs 0.14 | 6.2 s |
+| gemini flash, signals read early | 120 full | 0.97 | 0.61 | 1.00 | 0.61 | Rs 0.16 | 6.7 s |
+| gemini flash, v9 | 120 full | 0.97 | 0.62 | 1.00 | 0.61 | Rs 0.16 | 6.7 s |
 """
 
 
@@ -65,3 +80,32 @@ def test_the_history_of_a_file_with_nothing_recorded_is_empty(tmp_path):
     shown = {row["metric"]: (row["shown"], row["met"]) for row in recorded["targets"]}
     assert shown["intent_accuracy"] == ("0.90", False) and shown["latency_ms_p95"] == ("7.2 s", True)
     assert shown["escalation_recall"] == ("n/a", None)
+
+
+def test_a_comparison_row_labelled_with_a_version_is_a_version():
+    found = comparison_versions(COMPARED)
+    assert [v["version"] for v in found] == ["v8", "v9"] and found[0]["model"] == "gemini flash"
+    assert (found[1]["metrics"]["escalation_precision"], found[1]["metrics"]["deflection_rate"]) == (0.62, 0.61)
+    assert found[1]["metrics"]["latency_s_p95"] == 6.7 and found[1]["metrics"]["intent_accuracy"] is None
+
+
+def test_the_targets_are_the_newest_version_in_either_table(tmp_path):
+    path = tmp_path / "EVALS.md"
+    path.write_text(TEXT + COMPARED, encoding="utf-8")
+    recorded = history(path)
+    assert recorded["latest"] == "v9" and recorded["latest_model"] == "gemini flash"
+    assert [v["version"] for v in recorded["versions"]] == ["v1", "v2"]
+    shown = {row["metric"]: (row["shown"], row["met"]) for row in recorded["targets"]}
+    assert shown["escalation_precision"] == ("0.62", True) and shown["latency_ms_p95"] == ("6.7 s", True)
+
+    # Ten is newer than nine, and a version recorded in both tables is shown from the comparison.
+    assert newest([{"version": "v9"}, {"version": "v10"}, {"version": "before v8"}]) == {"version": "v10"}
+    assert newest([{"version": "v2", "model": "local"}, {"version": "v2", "model": "hosted"}])["model"] == "hosted"
+    assert newest([]) is None
+
+
+def test_a_comparison_row_has_a_column_for_every_target():
+    columns = {**VERSION_COLUMNS, **CATEGORY_COLUMNS}
+    held = {columns[heading] for heading in cells(compare.HEADER) if heading in columns}
+    needed = {"latency_s_p95" if metric == "latency_ms_p95" else metric for metric in TARGETS}
+    assert needed <= held

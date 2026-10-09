@@ -16,6 +16,8 @@ COMPARISON_START = "## Model comparison"
 NUMBER = re.compile(r"^(?:Rs )?(\d+(?:\.\d+)?)(?: s)?$")
 GATED = {metric for metric, _, limit in GATES if limit is not None}
 TARGET = re.compile(r"^([<>]?)\s*(?:Rs )?(\d+(?:\.\d+)?)")
+# A comparison row whose label is a version, as in "v13=results_v13_gemini_jev.json".
+VERSION_LABEL = re.compile(r",\s*(v\d+)$")
 
 # Column headings in the version table, and the metric each one holds.
 VERSION_COLUMNS = {
@@ -66,6 +68,33 @@ def versions(text: str) -> list[dict]:
     return out
 
 
+def comparison_versions(text: str) -> list[dict]:
+    """The versions recorded in the model comparison. From v8 a version runs on the demo's setup,
+    and the version table keeps one model, so these are rows of the comparison labelled with
+    their version. A row with any other label, or none, is a comparison and not a version."""
+    columns = {**VERSION_COLUMNS, **CATEGORY_COLUMNS}
+    out = []
+    for row in table_after(text, COMPARISON_START):
+        found = VERSION_LABEL.search(row.get("Configuration", ""))
+        if not found:
+            continue
+        metrics = {key: number(row.get(column)) for column, key in columns.items()}
+        out.append({"version": found.group(1), "change": "", "model": row["Configuration"][:found.start()],
+                    "cases": row["Cases"], "date": "", "metrics": metrics})
+    return out
+
+
+def newest(recorded: list[dict]) -> dict | None:
+    """The version with the highest number. On a tie the one listed last wins."""
+    best = None
+    for version in recorded:
+        if not re.fullmatch(r"v\d+", version["version"]):
+            continue
+        if best is None or int(version["version"][1:]) >= int(best["version"][1:]):
+            best = version
+    return best
+
+
 def met(target: str, value: float | None) -> bool | None:
     """Whether a value meets a target as it is written in the build spec. None when the
     target is only reported, or when there is nothing to compare."""
@@ -89,7 +118,7 @@ def in_ci(metric: str, gates: str) -> str:
 
 
 def targets(latest: dict | None) -> list[dict]:
-    """The ten headline numbers with their targets, and the last recorded version beside them."""
+    """The ten headline numbers with their targets, and the newest version beside them."""
     values = dict((latest or {}).get("metrics") or {})
     rows = []
     for metric, (label, target, gates) in TARGETS.items():
@@ -104,6 +133,10 @@ def targets(latest: dict | None) -> list[dict]:
 
 def history(path: Path = EVALS_FILE) -> dict:
     text = path.read_text(encoding="utf-8") if path.exists() else ""
-    recorded = versions(text)
-    return {"versions": recorded, "targets": targets(recorded[-1] if recorded else None),
-            "latest": recorded[-1]["version"] if recorded else None, "comparison": table_after(text, COMPARISON_START)}
+    recorded, compared = versions(text), comparison_versions(text)
+    # The targets are the newest version in either table. A version recorded in both is shown
+    # from the comparison, which is the setup the demo runs.
+    latest = newest(recorded + compared)
+    return {"versions": recorded, "comparison_versions": compared, "targets": targets(latest),
+            "latest": latest["version"] if latest else None, "latest_model": latest["model"] if latest else None,
+            "comparison": table_after(text, COMPARISON_START)}

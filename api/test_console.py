@@ -167,7 +167,8 @@ def test_the_settings_and_the_metrics_the_console_starts_from(api):
     metrics = api.get("/metrics").json()
     assert [v["version"] for v in metrics["versions"]][:2] == ["v1", "v2"]
     assert metrics["versions"][0]["metrics"]["escalation_recall"] == 0.93
-    assert len(metrics["targets"]) == 10 and metrics["latest"] == metrics["versions"][-1]["version"]
+    every = metrics["versions"] + metrics["comparison_versions"]
+    assert len(metrics["targets"]) == 10 and metrics["latest"] == max((v["version"] for v in every), key=lambda v: int(v[1:]))
 
 
 def test_a_trace_link_is_built_only_when_a_template_is_set(monkeypatch):

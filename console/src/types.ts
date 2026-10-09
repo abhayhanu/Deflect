@@ -121,7 +121,9 @@ export interface Target {
 
 export interface Metrics {
   versions: Version[];
+  comparison_versions: Version[];
   targets: Target[];
   latest: string | null;
+  latest_model: string | null;
   comparison: Record<string, string>[];
 }

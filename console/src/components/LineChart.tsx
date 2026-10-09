@@ -20,6 +20,8 @@ export function LineChart({ versions, series }: { versions: Version[]; series: S
   const x = (i: number) => PAD.left + (versions.length === 1 ? innerW / 2 : (i * innerW) / (versions.length - 1));
   const y = (value: number) => PAD.top + innerH - value * innerH;
   const last = versions.length - 1;
+  // Versions read from the model comparison have no change written down, only their numbers.
+  const hint = versions.some((v) => v.change) ? "Hover a version to see what changed in it." : "Hover a version to see its numbers.";
 
   // Labels at the right edge are nudged apart so two lines that end close together stay readable.
   const ends = series
@@ -76,10 +78,11 @@ export function LineChart({ versions, series }: { versions: Version[]; series: S
       </svg>
       <figcaption>
         {hover === null ? (
-          "Hover a version to see what changed in it."
+          hint
         ) : (
           <>
-            <strong>{versions[hover].version}</strong> {versions[hover].change}.{" "}
+            <strong>{versions[hover].version}</strong>
+            {versions[hover].change ? ` ${versions[hover].change}.` : "."}{" "}
             {series.map((s) => `${s.label} ${versions[hover].metrics[s.key]?.toFixed(2) ?? "not measured"}`).join(", ")}.
           </>
         )}
