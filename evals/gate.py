@@ -38,6 +38,7 @@ GATES = [
     ("wrong_refund_timelines", "max", 0),
     ("silent_actions", "max", 0),
     ("signal_tickets_handled", "max", 0),
+    ("plans_without_tool", "max", 0),
     # A stand in classified or checked part of the run, so it is not the configuration its row names.
     ("classifier_fallbacks", "max", 0),
     ("checker_fallbacks", "max", 0),

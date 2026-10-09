@@ -187,3 +187,17 @@ def test_a_reply_that_repeats_its_own_instructions_is_counted():
     from evals.gate import breaches
 
     assert any("instruction_echoes" in line for line in breaches(m))
+
+
+def test_a_plan_that_acts_without_naming_a_tool_is_counted_and_gated():
+    lost = record("g1", "refund_request", "refund_request", True, False)
+    lost["predicted"]["terminal_reason"] = "escalated_act_without_tool"
+    handled = record("g2", "refund_request", "refund_request", False, False, ["pol_a"], ["pol_a"])
+    handled["predicted"]["terminal_reason"] = "acted"
+    m = compute([lost, handled])
+    assert m["plans_without_tool"] == 1
+
+    from evals.gate import breaches
+
+    assert any("plans_without_tool" in line for line in breaches(m))
+    assert not any("plans_without_tool" in line for line in breaches(compute([handled])))

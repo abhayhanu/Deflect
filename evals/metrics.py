@@ -211,6 +211,8 @@ def compute(records: list[dict]) -> dict:
         "low_confidence_escalations": sum(r["predicted"].get("terminal_reason") == "escalated_low_confidence" for r in records),
         "signal_escalations": sum(r["predicted"].get("terminal_reason") == "escalated_message_signal" for r in records),
         "signal_tickets_handled": sum(signal_ticket_handled(r) for r in ok),
+        # A plan that chose to act and named no tool. Entry 21 in FAILURES.md, fixed in v11.
+        "plans_without_tool": sum(r["predicted"].get("terminal_reason") == "escalated_act_without_tool" for r in ok),
         "judged_replies": len(judged(records)),
         "judge_means": {d: round(sum(s[d] for s in judged(records)) / len(judged(records)), 3)
                         for d in DIMENSIONS} if judged(records) else {},
