@@ -70,3 +70,13 @@ def test_the_plan_always_writes_its_action_fields():
     with pytest.raises(ValidationError):
         Plan(rationale="r", decision="act", cites=["pol_a"])
     assert Plan(rationale="r", decision="answer", tool_name=None, tool_args=None, cites=["pol_a"]).tool_name is None
+
+
+def test_the_prompt_never_asks_for_a_decision_the_checker_refuses():
+    """The checker refuses any decision that cites no policy. Rule 8 asked for an answer that
+    cited nothing, so a customer who forgot the order id went to a person after three refusals.
+    Four tickets in v10 and three in v11."""
+    from agent.nodes.plan import SYSTEM
+
+    rule = SYSTEM.split("\n8. ", 1)[1].split("\n9. ", 1)[0]
+    assert "confirm the order id" in rule and "Cite the policy" in rule
