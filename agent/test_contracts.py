@@ -56,3 +56,17 @@ def test_the_plan_reasons_before_it_decides():
     assert fields[:2] == ["rationale", "decision"]
     assert fields.index("tool_name") > fields.index("rationale")
     assert SYSTEM.index("- rationale:") < SYSTEM.index("- decision:")
+
+
+def test_the_plan_always_writes_its_action_fields():
+    """A field with a default is optional in the schema the model is given. Gemini decided to act
+    and then left the tool out nine times in the v10 run, so the tool fields have no default."""
+    import pytest
+    from pydantic import ValidationError
+
+    from agent.state import Plan
+
+    assert {"rationale", "decision", "tool_name", "tool_args", "cites"} <= set(Plan.model_json_schema()["required"])
+    with pytest.raises(ValidationError):
+        Plan(rationale="r", decision="act", cites=["pol_a"])
+    assert Plan(rationale="r", decision="answer", tool_name=None, tool_args=None, cites=["pol_a"]).tool_name is None

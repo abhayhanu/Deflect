@@ -14,7 +14,7 @@ def call(name, result=None, error=None, **args):
 
 
 def state(order=None, calls=(), decision="answer", tool=None, cites=("pol_lost_transit",)):
-    plan = Plan(decision=decision, tool_name=tool, cites=list(cites), rationale="x")
+    plan = Plan(decision=decision, tool_name=tool, tool_args=None, cites=list(cites), rationale="x")
     base = {"order_id": "A1", "belongs_to_customer": True, "status": "delivered", "refunds": [], "refunded_inr": 0, "shipments": []}
     return {"plan": plan, "order": {**base, **(order or {})}, "tool_calls": list(calls)}
 

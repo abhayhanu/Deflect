@@ -195,7 +195,7 @@ def test_every_plan_and_every_verdict_is_read_from_the_history():
         return SimpleNamespace(next=(after,), values=values)
 
     first = Plan(decision="act", tool_name="issue_refund", tool_args={"order_id": "A1", "idempotency_key": "k"}, cites=["pol_a"], rationale="r")
-    second = Plan(decision="escalate", cites=[], rationale="r", escalation_reason="unsure")
+    second = Plan(decision="escalate", tool_name=None, tool_args=None, cites=[], rationale="r", escalation_reason="unsure")
     verdict = Verification(grounded=False, action_matches_policy=True, unsupported_claims=["x"], verdict="retry", failed_checks=["unsupported_claims"])
     history = [step("plan"), step("draft", plan=first), step("verify", plan=first, draft="d1"),
                step("plan", plan=first, draft="d1", verification=verdict), step("escalate", plan=second, draft="d1", verification=verdict)]

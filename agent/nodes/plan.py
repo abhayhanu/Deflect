@@ -119,8 +119,8 @@ def plan(state: TicketState, runtime: Runtime[RunContext]) -> dict:
 
     result = call_structured(ctx.chat_model(), Plan, prompt, ctx.usage)
     if result is None:
-        result = Plan(decision="escalate", cites=[], rationale="The plan could not be parsed.",
-                      escalation_reason="parse_failure")
+        result = Plan(rationale="The plan could not be parsed.", decision="escalate", tool_name=None, tool_args=None,
+                      cites=[], escalation_reason="parse_failure")
     elif result.decision == "act" and not result.tool_name:
         result = result.model_copy(update={"decision": "escalate", "tool_args": None,
                                            "escalation_reason": "act_without_tool"})

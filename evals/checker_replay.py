@@ -70,7 +70,8 @@ def rounds_to_replay(results: dict, only: list[str] | None = None) -> list[tuple
 def rebuild(record: dict, draft: str, order: dict | None, chunks: dict, anchor: datetime) -> dict:
     """The state the checker reads, put back together from what the run recorded."""
     predicted = record["predicted"]
-    plan = Plan(decision=predicted.get("plan_decision") or "answer", cites=predicted.get("cites") or [], rationale="")
+    plan = Plan(rationale="", decision=predicted.get("plan_decision") or "answer", tool_name=None, tool_args=None,
+                cites=predicted.get("cites") or [])
     calls = [ToolCall(name=t["name"], args=t["args"], result=t["result"], error=t["error"], authorized_by=t["authorized_by"],
                       latency_ms=t["latency_ms"], called_at=anchor, approver_id=t.get("approver_id"))
              for t in record.get("tool_calls", [])]

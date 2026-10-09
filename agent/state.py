@@ -36,8 +36,10 @@ class Plan(BaseModel):
     # the decision is written after the reasoning, not before it. Until v10 it came fifth.
     rationale: str
     decision: Decision
-    tool_name: str | None = None
-    tool_args: dict | None = None
+    # Required, and null when the plan does not act. With a default they were optional in the
+    # schema, and a model sometimes skipped them after deciding to act. Until v11.
+    tool_name: str | None
+    tool_args: dict | None
     cites: list[str]
     escalation_reason: str | None = None
 

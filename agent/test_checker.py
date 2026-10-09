@@ -87,7 +87,7 @@ def clean_env(monkeypatch):
 
 def drafted(reply: str) -> dict:
     policy = RetrievedPolicy(doc_id="pol_lost_transit", title="Lost in Transit", chunk="Share the latest tracking event.", score=0.8)
-    return {"plan": Plan(decision="answer", cites=["pol_lost_transit"], rationale="private reasoning"),
+    return {"plan": Plan(decision="answer", tool_name=None, tool_args=None, cites=["pol_lost_transit"], rationale="private reasoning"),
             "policies": [policy], "order": {"order_id": "A3107", "status": "shipped"}, "tool_calls": [], "draft": reply}
 
 
