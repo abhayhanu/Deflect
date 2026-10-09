@@ -32,11 +32,13 @@ class RetrievedPolicy(BaseModel):
 
 
 class Plan(BaseModel):
+    # A model fills these in from the top down and cannot go back. The rationale comes first so
+    # the decision is written after the reasoning, not before it. Until v10 it came fifth.
+    rationale: str
     decision: Decision
     tool_name: str | None = None
     tool_args: dict | None = None
     cites: list[str]
-    rationale: str
     escalation_reason: str | None = None
 
 

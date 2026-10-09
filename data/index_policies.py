@@ -2,7 +2,15 @@
 
 Chunks follow the ## sections, never a fixed size. A section keeps an eligibility rule
 together with its conditions, which is what the agent needs to cite it correctly.
-Run it again whenever a policy changes. The dry run option prints the chunks and stops.
+The dry run option prints the chunks and stops.
+
+A policy whose front matter says pinned is returned with every search, whatever was asked.
+pol_escalation is the one pinned policy: it overrides every other policy, and its wording is
+about who is asking and how, which no customer message resembles. A search by meaning found
+it for half the tickets that needed it.
+
+The index rebuilds itself when a policy file no longer matches what is stored, so an edit to
+a policy never leaves an old copy answering searches.
 
 This module only writes the index. The MCP server's search_policy tool reads it, so the
 collection name, the embedding model and the payload fields are a contract between the two.
@@ -34,6 +42,7 @@ class Chunk:
     applies_to: tuple[str, ...]
     version: int
     text: str
+    pinned: bool = False
 
     @property
     def point_id(self) -> str:
@@ -47,6 +56,7 @@ class Chunk:
             "applies_to": list(self.applies_to),
             "version": self.version,
             "text": self.text,
+            "pinned": self.pinned,
         }
 
 
@@ -79,6 +89,7 @@ def chunk_policy(meta: dict, body: str) -> list[Chunk]:
             applies_to=tuple(meta["applies_to"]),
             version=int(meta["version"]),
             text=f"{meta['title']}\n## {heading}\n{content}",
+            pinned=bool(meta.get("pinned", False)),
         ))
     return chunks
 
@@ -118,7 +129,10 @@ def get_client():
     from qdrant_client import QdrantClient
 
     url = os.getenv("QDRANT_URL") or "http://localhost:6333"
-    return QdrantClient(location=":memory:") if url == ":memory:" else QdrantClient(url=url, timeout=10)
+    if url == ":memory:":
+        return QdrantClient(location=":memory:")
+    # A hosted Qdrant needs a key. A local one has none, and None means no key is sent.
+    return QdrantClient(url=url, api_key=os.getenv("QDRANT_API_KEY") or None, timeout=10)
 
 
 def index(chunks: list[Chunk], client=None, embedder=None) -> int:
@@ -133,6 +147,7 @@ def index(chunks: list[Chunk], client=None, embedder=None) -> int:
         client.delete_collection(name)
     client.create_collection(name, vectors_config=models.VectorParams(size=embedder.dim, distance=models.Distance.COSINE))
     client.create_payload_index(name, "applies_to", models.PayloadSchemaType.KEYWORD)
+    client.create_payload_index(name, "pinned", models.PayloadSchemaType.BOOL)
 
     vectors = embedder.embed_documents([c.text for c in chunks])
     points = [models.PointStruct(id=c.point_id, vector=v, payload=c.payload()) for c, v in zip(chunks, vectors)]
@@ -140,12 +155,23 @@ def index(chunks: list[Chunk], client=None, embedder=None) -> int:
     return len(points)
 
 
+def stale(client, name: str, chunks: list[Chunk]) -> bool:
+    """Whether what is stored differs from the policy files in any way: a section added or
+    removed, a word changed, a policy pinned."""
+    if not client.collection_exists(name) or client.count(name).count != len(chunks):
+        return True
+    stored, _ = client.scroll(name, limit=len(chunks) + 1, with_payload=True)
+    held = {str(point.id): point.payload for point in stored}
+    return any(held.get(c.point_id) != c.payload() for c in chunks)
+
+
 def ensure_indexed(client=None, embedder=None) -> None:
     client = client or get_client()
     embedder = embedder or get_embedder()
     chunks = load_chunks()
     name = collection_name()
-    if not client.collection_exists(name) or client.count(name).count != len(chunks):
+    if stale(client, name, chunks):
+        print(f"The policy index is out of date with the policy files. Rebuilding {name}.", file=sys.stderr)
         index(chunks, client, embedder)
 
 
@@ -157,7 +183,7 @@ def main() -> int:
     chunks = load_chunks()
     if args.dry_run:
         for c in chunks:
-            print(f"{c.doc_id:<22} {c.section:<45} {len(c.text.split()):>4} words")
+            print(f"{c.doc_id:<22} {c.section:<45} {len(c.text.split()):>4} words{'  pinned' if c.pinned else ''}")
         print(f"\n{len(chunks)} chunks from {len({c.doc_id for c in chunks})} policies. Dry run, nothing indexed.")
         return 0
 

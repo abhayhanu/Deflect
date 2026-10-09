@@ -35,6 +35,8 @@ dependencies = [
 hosted = [
     "langchain-openai>=1.0,<2",
     "langchain-anthropic>=1.0,<2",
+    "langchain-google-genai>=4.0,<5",
+    "typesafe-sdk>=0.7,<1",
 ]
 
 [tool.setuptools.packages.find]

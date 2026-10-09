@@ -3,6 +3,7 @@ doc_id: pol_escalation
 title: Mandatory Escalation to a Human
 applies_to: [order_status, refund_request, return_request, address_change, cancellation, complaint, product_question, out_of_scope]
 version: 1
+pinned: true
 ---
 
 # Mandatory Escalation to a Human

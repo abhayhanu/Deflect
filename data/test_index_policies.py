@@ -5,7 +5,7 @@ import re
 import pytest
 from qdrant_client import QdrantClient
 
-from data.index_policies import collection_name, ensure_indexed, load_chunks
+from data.index_policies import collection_name, ensure_indexed, load_chunks, stale
 
 
 class HashEmbedder:
@@ -50,3 +50,27 @@ def test_indexing_twice_gives_the_same_collection(indexed):
     client, embedder = indexed
     ensure_indexed(client, embedder)
     assert client.count(collection_name()).count == len(load_chunks())
+
+
+def test_only_the_policy_that_overrides_the_others_is_pinned():
+    pinned = {c.doc_id for c in load_chunks() if c.pinned}
+    assert pinned == {"pol_escalation"}
+    assert all(c.payload()["pinned"] is (c.doc_id == "pol_escalation") for c in load_chunks())
+
+
+def test_an_index_that_no_longer_matches_the_policy_files_is_rebuilt(indexed):
+    client, embedder = indexed
+    name, chunks = collection_name(), load_chunks()
+    assert not stale(client, name, chunks)
+
+    # The same number of sections, one of them with words the policy file does not have.
+    client.set_payload(name, payload={"text": "an older wording"}, points=[chunks[0].point_id])
+    assert stale(client, name, chunks)
+    ensure_indexed(client, embedder)
+    assert not stale(client, name, chunks)
+
+    # An index built before policies could be pinned has no such field at all.
+    client.delete_payload(name, keys=["pinned"], points=[c.point_id for c in chunks])
+    assert stale(client, name, chunks)
+    ensure_indexed(client, embedder)
+    assert not stale(client, name, chunks)

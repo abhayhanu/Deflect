@@ -1,4 +1,5 @@
 import logging
+import re
 
 from langgraph.runtime import Runtime
 
@@ -75,6 +76,15 @@ def escalation_reply(state: TicketState) -> str:
     )
 
 
+# An instruction from the reply prompt, written out to the customer as if it were the reply's
+# own last line. A hosted model did this on four replies in ten. The name is kept and the instruction is dropped.
+ECHOED_SIGN_OFF = re.compile(r"^[ \t]*sign(?:ing)? off as[ \t]+(\S.*)$", re.IGNORECASE | re.MULTILINE)
+
+
+def without_echoed_instructions(reply: str) -> str:
+    return ECHOED_SIGN_OFF.sub(lambda found: found.group(1).rstrip().rstrip(".").rstrip(), reply)
+
+
 def respond(state: TicketState, runtime: Runtime[RunContext]) -> dict:
     """The last step. Escalations get the fixed reply. Everything else sends the checked draft,
     with the real personal details put back only now."""
@@ -83,7 +93,7 @@ def respond(state: TicketState, runtime: Runtime[RunContext]) -> dict:
         return {"reply": escalation_reply(state), "terminal_reason": reason}
 
     acted = any(not call.error for call in state.get("tool_calls") or [])
-    reply = rehydrate(state["draft"], runtime.context.pii_map(state["raw_message"]))
+    reply = rehydrate(without_echoed_instructions(state["draft"]), runtime.context.pii_map(state["raw_message"]))
     if unknown_placeholders(reply):
         log.warning("Reply used placeholders that match nothing in the ticket: %s", unknown_placeholders(reply))
         reply = drop_unknown_placeholders(reply)

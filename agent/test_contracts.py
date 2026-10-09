@@ -44,3 +44,15 @@ def test_only_providers_names_a_provider_package():
 
 def test_agent_intents_match_the_golden_dataset():
     assert get_args(Intent) == INTENTS
+
+
+def test_the_plan_reasons_before_it_decides():
+    """A hosted model writes the fields in the order the schema gives them. With the decision
+    first it decided before it reasoned, and twice argued its way to the other answer too late."""
+    from agent.nodes.plan import SYSTEM
+    from agent.state import Plan
+
+    fields = list(Plan.model_json_schema()["properties"])
+    assert fields[:2] == ["rationale", "decision"]
+    assert fields.index("tool_name") > fields.index("rationale")
+    assert SYSTEM.index("- rationale:") < SYSTEM.index("- decision:")

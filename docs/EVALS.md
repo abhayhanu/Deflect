@@ -186,8 +186,9 @@ classifier it was recorded with. A larger local model was in the first plan and 
 | gemini gemini-3.5-flash-lite, classified by jev jev-latest, before v8 | 120 full | on, jev jev-latest | 0.93 | 0.80 | 0.90 | 0.76 | 0.00 | 0.60 | n/a | 0.00 | Rs 0.15 | 2.9 s | 5.4 s |
 | gemini gemini-3.5-flash-lite, classified by jev jev-latest, v8 | 120 full | on, jev jev-latest | 0.93 | 0.82 | 0.93 | 0.79 | 0.00 | 0.61 | n/a | 0.00 | Rs 0.14 | 3.2 s | 6.2 s |
 | gemini gemini-3.5-flash-lite, classified by jev jev-latest, v9 | 120 full | on, jev jev-latest | 0.93 | 0.84 | 0.97 | 0.83 | 0.00 | 0.61 | n/a | 0.00 | Rs 0.16 | 3.4 s | 6.7 s |
+| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v10 | 120 full | on, jev jev-latest | 0.93 | 0.79 | 1.00 | 0.74 | 0.00 | 0.54 | n/a | 0.00 | Rs 0.17 | 3.3 s | 6.6 s |
 
-Built on 2026-10-07 from `results_v5.json`, `results_v6.json`, `results_v7.json`, `results_gemini_full_v2.json`, `results_gemini_jev.json`, `results_v8_gemini_jev.json`, `results_v9_gemini_jev.json`.
+Built on 2026-10-09 from `results_v5.json`, `results_v6.json`, `results_v7.json`, `results_gemini_full_v2.json`, `results_gemini_jev.json`, `results_v8_gemini_jev.json`, `results_v9_gemini_jev.json`, `results_v10_gemini_jev.json`.
 <!-- model comparison end -->
 
 ## Component level
@@ -674,6 +675,19 @@ that was a stand in, and the probability of every intent when the classifier giv
 - The four v9 results files name commit `98448b0`, the same as v8. The change was in the
   working tree and had not been committed when they were made. Commit before a recorded run,
   so the file names the code it measured.
+- v10 is not recorded yet. It changes one thing: the plan writes its rationale before its
+  decision, where it used to write it fifth, after the decision and the tool. `docs/FAILURES.md`
+  entry 20. Commit it first, then the same commands as v9 with `v10` in the file names. What to
+  read beside the gate: whether `gold_078` goes to a person in every pass, how many tickets end
+  `escalated_act_without_tool`, which was 5 in v9, and deflection.
+- v10 was run on 9 October 2026 and passes the gate. It is the last row of the model
+  comparison. Escalation recall is 1.00 in all four runs, three passes and the full run, and no
+  ticket of the 30 ended differently from one pass to the next. `gold_078` is fixed. It cost
+  deflection: 0.54 where v9 had 0.61, 55 tickets sent to a person where 30 needed one. Decision
+  accuracy 0.79 and action correctness 0.74, both down. `docs/FAILURES.md` entry 21 has the
+  three causes and the three versions that follow, v11 to v13.
+- The v10 results files name commit `1ecc909`, which does not contain the v9 or v10 code. As
+  with v9, the change was not committed before the run.
 - The console's metrics screen reads this file. The targets table, the version chart and the
   model comparison there are these tables, parsed by `evals/history.py`, so there is one place
   a number lives.
