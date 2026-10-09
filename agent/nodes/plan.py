@@ -21,7 +21,9 @@ Each excerpt has a doc_id.
 Rules:
 1. Decide only from the policy excerpts. Never use general knowledge about refunds,
    returns, cancellations or shipping.
-2. If no excerpt covers the situation, decision must be "escalate".
+2. If no excerpt covers the situation, decision must be "escalate". An excerpt covers a
+   situation when it says what happens in it, and that includes saying a request cannot be
+   granted. A request a policy refuses is answered with the reason, unless rule 3 applies.
 3. If an excerpt says the situation goes to the support team or must be escalated,
    decision must be "escalate".
 4. If a policy says an action should happen now and one of the actions below does it,

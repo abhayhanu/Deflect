@@ -80,3 +80,14 @@ def test_the_prompt_never_asks_for_a_decision_the_checker_refuses():
 
     rule = SYSTEM.split("\n8. ", 1)[1].split("\n9. ", 1)[0]
     assert "confirm the order id" in rule and "Cite the policy" in rule
+
+
+def test_a_refusal_is_answered_and_the_escalation_rules_still_come_first():
+    """A policy that said no was read as no policy at all, and the ticket went to a person. Seven
+    tickets in v11. A refusal covers the request, but never ahead of the escalation policy."""
+    from agent.nodes.plan import SYSTEM
+
+    rule = SYSTEM.split("\n2. ", 1)[1].split("\n3. ", 1)[0]
+    assert "cannot be" in rule and "answered with the reason" in rule
+    assert "unless rule 3 applies" in rule
+    assert "goes to the support team or must be escalated" in SYSTEM.split("\n3. ", 1)[1].split("\n4. ", 1)[0]
