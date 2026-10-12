@@ -53,3 +53,26 @@ def test_migrating_twice_changes_nothing(owner_url, monkeypatch):
     assert testdb.prepare(monkeypatch) == owner_url
     with psycopg.connect(owner_url) as conn:
         assert pending(conn) == []
+
+
+class Answers:
+    """A cursor that gives one fixed answer, enough for a check that asks one question."""
+
+    def __init__(self, value):
+        self.value = value
+
+    def execute(self, query, params=None):
+        self.query = query
+
+    def fetchone(self):
+        return (self.value,)
+
+
+def test_a_database_that_is_not_utf8_is_named_as_the_cause():
+    from data.migrate import require_utf8
+
+    require_utf8(Answers("UTF8"))
+    # A SQL_ASCII database answers in bytes, which is how the demo image first failed.
+    for answer in ("SQL_ASCII", b"SQL_ASCII", "LATIN1"):
+        with pytest.raises(RuntimeError, match="needs UTF8"):
+            require_utf8(Answers(answer))

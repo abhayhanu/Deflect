@@ -24,6 +24,18 @@ def migration_files() -> list[Path]:
     return sorted(MIGRATIONS_DIR.glob("*.sql"))
 
 
+def require_utf8(cur) -> None:
+    """A database that is not UTF8 makes psycopg hand back bytes where text was expected, and the
+    first error it causes is far from the cause. This names the cause instead."""
+    cur.execute("SHOW server_encoding")
+    encoding = cur.fetchone()[0]
+    if isinstance(encoding, bytes):
+        encoding = encoding.decode("ascii", "replace")
+    if encoding.upper() != "UTF8":
+        raise RuntimeError(f"The database uses the {encoding} encoding and Deflect needs UTF8. "
+                           "Create it again with initdb --encoding=UTF8, or createdb --encoding=UTF8.")
+
+
 def ensure_app_role(cur) -> None:
     cur.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (APP_ROLE,))
     verb = "ALTER" if cur.fetchone() else "CREATE"
@@ -65,6 +77,7 @@ def prepare_checkpoints() -> None:
 
 def migrate(cur) -> list[str]:
     """Runs inside the caller's transaction. Returns the names it applied."""
+    require_utf8(cur)
     ensure_app_role(cur)
     done = applied(cur)
     ran = []

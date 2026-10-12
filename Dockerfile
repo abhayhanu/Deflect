@@ -25,6 +25,9 @@ ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     FASTEMBED_CACHE_PATH=/home/user/.cache/fastembed
+# Cloud Build uses Docker's older builder, which creates a WORKDIR as root whatever USER says,
+# and pip could not write there. Made by user first, it belongs to user with either builder.
+RUN mkdir -p /home/user/app
 WORKDIR /home/user/app
 
 # Dependencies first, so a change to the code does not install them all again.

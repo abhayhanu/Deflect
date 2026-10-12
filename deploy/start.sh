@@ -36,7 +36,10 @@ if [ -z "${DATABASE_URL:-}" ] && [ -z "${POSTGRES_HOST:-}" ]; then
   PGDATA="${PGDATA:-$HOME/pgdata}"
   if [ ! -s "$PGDATA/PG_VERSION" ]; then
     echo "deflect" > "$HOME/.pgpass_seed"
-    "$PG_BIN/initdb" -D "$PGDATA" -U deflect --pwfile="$HOME/.pgpass_seed" --auth=scram-sha-256 > /dev/null
+    # UTF8 is set here because the image has no locale, and initdb would pick SQL_ASCII, which
+    # psycopg answers with bytes instead of text.
+    "$PG_BIN/initdb" -D "$PGDATA" -U deflect --pwfile="$HOME/.pgpass_seed" --auth=scram-sha-256 \
+      --encoding=UTF8 --no-locale > /dev/null
     rm -f "$HOME/.pgpass_seed"
   fi
   # Only this container can reach it. The port is the one the project's defaults expect.
