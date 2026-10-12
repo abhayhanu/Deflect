@@ -151,6 +151,7 @@ and a version judged under both has a row for each.
 | v5 | gemini gemini-3.8-flash, rubric 2 | 26 | 3.73 | 3.65 | 4.08 | 4.15 | 3.90 | Rs 8.14 | 2026-10-05 |
 | v6 | gemini gemini-3.8-flash, rubric 2 | 34 | 4.53 | 4.29 | 4.59 | 4.85 | 4.57 | Rs 9.62 | 2026-10-05 |
 | v7 | gemini gemini-3.8-flash, rubric 2 | 27 | 4.48 | 4.04 | 4.44 | 4.78 | 4.43 | Rs 8.20 | 2026-10-05 |
+| v13 | gemini gemini-3.8-flash, rubric 2 | 81 | 4.94 | 3.96 | 3.46 | 4.99 | 4.34 | Rs 27.15 | 2026-10-12 |
 
 ## Judge validation
 
@@ -189,9 +190,9 @@ classifier it was recorded with. A larger local model was in the first plan and 
 | gemini gemini-3.5-flash-lite, classified by jev jev-latest, v10 | 120 full | on, jev jev-latest | 0.93 | 0.79 | 1.00 | 0.55 | 1.00 | 0.74 | 0.00 | 0.54 | n/a | 0.00 | Rs 0.17 | 3.3 s | 6.6 s |
 | gemini gemini-3.5-flash-lite, classified by jev jev-latest, v11 | 120 full | on, jev jev-latest | 0.93 | 0.85 | 1.00 | 0.62 | 1.00 | 0.93 | 0.00 | 0.60 | n/a | 0.00 | Rs 0.18 | 3.4 s | 6.7 s |
 | gemini gemini-3.5-flash-lite, classified by jev jev-latest, v12 | 120 full | on, jev jev-latest | 0.93 | 0.90 | 1.00 | 0.71 | 1.00 | 0.95 | 0.00 | 0.65 | n/a | 0.00 | Rs 0.17 | 3.4 s | 6.1 s |
-| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v13 | 120 full | on, jev jev-latest | 0.93 | 0.93 | 1.00 | 0.77 | 1.00 | 0.93 | 0.00 | 0.68 | n/a | 0.00 | Rs 0.18 | 3.5 s | 6.2 s |
+| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v13 | 120 full | on, jev jev-latest | 0.93 | 0.93 | 1.00 | 0.77 | 1.00 | 0.93 | 0.00 | 0.68 | 4.34 | 0.00 | Rs 0.18 | 3.5 s | 6.2 s |
 
-Built on 2026-10-09 from `results_v5.json`, `results_v6.json`, `results_v7.json`, `results_gemini_full_v2.json`, `results_gemini_jev.json`, `results_v8_gemini_jev.json`, `results_v9_gemini_jev.json`, `results_v10_gemini_jev.json`, `results_v11_gemini_jev.json`, `results_v12_gemini_jev.json`, `results_v13_gemini_jev.json`.
+Built on 2026-10-12 from `results_v5.json`, `results_v6.json`, `results_v7.json`, `results_gemini_full_v2.json`, `results_gemini_jev.json`, `results_v8_gemini_jev.json`, `results_v9_gemini_jev.json`, `results_v10_gemini_jev.json`, `results_v11_gemini_jev.json`, `results_v12_gemini_jev.json`, `results_v13_gemini_jev.json`.
 <!-- model comparison end -->
 
 ## Component level
