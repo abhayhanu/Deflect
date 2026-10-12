@@ -1254,3 +1254,158 @@ applies it more literally.
 
 **Status.** Open. v10 is recorded as it ran. Escalation recall is the hard gate and v10 is the
 first version to hold it at 1.00 on every run, so it is not rolled back.
+
+**v11, 9 October 2026.** The first fix is in the code. `tool_name` and `tool_args` have no
+default in `Plan`, so the schema the model is given lists them as required. They still accept
+null, and a plan that does not act writes null in both. The plan's prompt already said so and is
+not changed. A contract test fails if either field becomes optional again. The two other fixes
+are untouched. Not measured on a real model.
+
+**v11 measured, 9 October 2026.** `escalated_act_without_tool` is 0 in the full run and in all
+three passes, where v10 had 9. No plan broke the schema: parse failures are 0.
+
+| | v10 | v11 |
+| --- | --- | --- |
+| Escalation recall, every run | 1.00 | 1.00 |
+| Action correctness | 0.74 | 0.93, 39 of 42 |
+| Decision accuracy | 0.79 | 0.85 |
+| Deflection | 0.54 | 0.60 |
+| Escalation precision | 0.55 | 0.62 |
+| Cost per ticket | Rs 0.17 | Rs 0.18 |
+
+Action correctness is the highest any run has had, and the first above its 0.85 target. Decision
+accuracy is the highest too. The two demo tickets entry 21 named, `gold_039` and `gold_034`, were
+handled. 18 tickets are still decided against their label. The planner is the first fault for
+11 of them, the reply checker for 4.
+
+Three of the four the citation check sent to a person in v10 went the same way in v11:
+`gold_073`, `gold_074` and `gold_077`. `gold_075` was answered, because after the checker refused
+it once the plan cited the return policy. The refusals read as "not covered" moved to other
+tickets: `gold_034`, `gold_113`, `gold_093` and `gold_042` were answered, and `gold_033`,
+`gold_110`, `gold_089`, `gold_108`, `gold_111`, `gold_101` and `gold_006` were escalated with the
+same reasoning. Seven tickets, the largest group left.
+
+**v12, as built.** The fix in the list above was to let the citation check pass an answer that
+cites nothing when no order was found. Looking closer, the check is right and the prompt is wrong:
+
+- The build spec says a missing order id "is usually a typo. Do not escalate on this", and to
+  let the plan ask the customer to confirm it.
+- The golden labels for these tickets each name the policy for what the customer asked,
+  `pol_lost_transit` for a missing parcel, `pol_cancellation` for a cancellation. They were
+  written before any of this, and they expect a citation.
+- Groundedness is gated, and counts a reply that cites nothing as ungrounded. Loosening the
+  check would have moved a gated number to let a version pass.
+- `gold_075` already shows the other way works: told it cited nothing, the plan cited the return
+  policy, and the reply passed.
+
+So v12 changes rule 8 of the plan's prompt instead. It still says to answer by asking for the
+order id, and now also says to cite the policy that covers what the customer is asking for. The
+check is unchanged. A contract test fails if rule 8 stops asking for a citation. Not measured on
+a real model.
+
+**v12 measured, 9 October 2026.** All five tickets with a missing or wrong order id were answered,
+`gold_073` to `gold_077`, each citing the policy for what the customer asked. Groundedness stayed
+at 1.00. Tickets ending `escalated_verify_failed` went from 4 to 2.
+
+| | v11 | v12 |
+| --- | --- | --- |
+| Escalation recall, every run | 1.00 | 1.00 |
+| Decision accuracy | 0.85 | 0.90 |
+| Action correctness | 0.93 | 0.95, 40 of 42 |
+| Deflection | 0.60 | 0.65 |
+| Escalation precision | 0.62 | 0.71, 30 of 42 |
+| Cost per ticket | Rs 0.18 | Rs 0.17 |
+| Latency p95 | 6.7 s | 6.1 s |
+
+Decision accuracy, action correctness, deflection and precision are the best any run has had. The replies now cite a policy and some quote it: the
+reply to `gold_077`, whose order id does not exist, explains how lost parcel refunds work. It is
+grounded and the checker passed it. Whether that helps the customer or reads as a promise is a
+question for the judge, which has not been run on a hosted run.
+
+12 tickets are still decided against their label. Five are the refusal read as "not covered":
+`gold_006`, `gold_042`, `gold_084`, `gold_089` and `gold_108`. Three are plans that proposed an
+action the guardrail refused, `gold_083`, `gold_087` and `gold_117`, which is the guardrail doing
+its job on a plan that should have answered. Two are the reply checker refusing a correct reply,
+`gold_023` and `gold_061`, the pattern of entry 12. `gold_093` is date arithmetic, change 3 of
+entry 20. `gold_099` is refused by the order scope check in every version.
+
+**v13, 9 October 2026.** The last of the three fixes is in the code. Rule 2 of the plan's prompt
+now says what covering means: an excerpt covers a situation when it says what happens in it,
+including that a request cannot be granted, and a request a policy refuses is answered with the
+reason, unless rule 3 applies. Rule 3 is the one that sends a ticket to a person when an excerpt
+says so, `pol_escalation` included, so a compensation demand that the shipping policy refuses
+still goes to a person under rule 7. A contract test fails if rule 2 loses either half. This is
+the change most able to cost escalation recall, so its passes are read for recall first. Not
+measured on a real model.
+
+**v13 measured, 9 October 2026.** Escalation recall 1.00 on all three passes and the full run.
+`gold_112`, `gold_119` and `gold_053`, the tickets a refusal could have pulled the wrong way,
+went to a person in all four. Of the five refusals read as "not covered" in v12, `gold_042` and
+`gold_089` were answered with the reason. The plan for `gold_108` answered with the reason too,
+and the reply checker refused the reply three times, the pattern of entry 12. `gold_006` was
+answered first, without a citation. The checker's note "the decision cites no policy" was read by
+the next plan as "no policy covers this", and it escalated. `gold_084` is in entry 22.
+
+| | v10 | v11 | v12 | v13 |
+| --- | --- | --- | --- | --- |
+| Escalation recall, every run | 1.00 | 1.00 | 1.00 | 1.00 |
+| Decision accuracy | 0.79 | 0.85 | 0.90 | 0.93 |
+| Action correctness | 0.74 | 0.93 | 0.95 | 0.93 |
+| Deflection | 0.54 | 0.60 | 0.65 | 0.68 |
+| Escalation precision | 0.55 | 0.62 | 0.71 | 0.77 |
+| Cost per ticket | Rs 0.17 | Rs 0.18 | Rs 0.17 | Rs 0.18 |
+
+Against v12, four tickets were won and one lost. The one lost is `gold_090`, a damaged item at
+exactly Rs 10,000, which the policy refunds "up to Rs 10,000 (inclusive)" and the plan read as
+above the limit. Entry 22.
+
+`plans_without_tool` now counts the first cause, a plan that chose to act and named no tool. It
+was 5 in v9 and 9 in v10, and is 0 in v11, v12 and v13. The gate holds it at zero. `gold_073`,
+`gold_074`, `gold_077` and `gold_089` are tagged `regression`, and `gold_042` already was.
+
+**Status.** Fixed. Each cause had its own version and each was measured. Deflection is 0.68,
+against 0.54 in v10 and 0.61 before it, and escalation recall has been 1.00 on every run since
+v10.
+
+## 22. The plan applied a refund rule without checking its condition
+
+**What happened.** v13 decides 9 tickets against their label. Five of them have the same shape:
+the plan found the right refund rule and applied it to a case its condition excluded.
+
+| Ticket | The rule's condition | The order | The plan | What happened |
+| --- | --- | --- | --- | --- |
+| `gold_083` | a lost parcel claim opens 48 hours after the delivery scan | 12 hours | refund | the guardrail refused |
+| `gold_084` | the same | 47 hours | refund | the guardrail refused |
+| `gold_087` | transit damage is refunded if reported within 72 hours | 80 hours | refund | the guardrail refused |
+| `gold_117` | a delivered parcel that never arrived | still shipped | refund | the guardrail refused |
+| `gold_090` | damage refunded up to Rs 10,000, inclusive | Rs 10,000 | escalated as above the limit | sent to a person |
+
+`gold_082` did it in one of v13's three passes too: "the order value is Rs 5049, which is up to
+Rs 5,000 inclusive", and the guardrail refused the refund. It did the same once in v11's passes
+and once in v12's.
+
+**How it showed up.** Reading v13's nine remaining losses side by side, after the gate passed.
+
+**Root cause.** The plan is given the numbers, `hours_since_delivered` among them, and the
+policy's thresholds as text, and it compares them itself. It does that well in the middle and
+badly at an edge: 47 against 48, 5,049 against 5,000, 10,000 against "up to 10,000". The
+guardrail makes the same comparisons in Python, in the numeric policy rules of
+`agent/guardrails/policy.py`, and in the direction that costs money it caught every one. No
+refund went out on any of these tickets. That is the design rule "guardrails in code, before the
+tool call" doing exactly its job, five times in one run.
+
+The cost is in usefulness, not safety. Each of these customers should have been told why, by
+the agent, and was handed to a person instead.
+
+**Fix proposed, not built.** Give the plan the outcome of the comparisons, not only the numbers:
+"the delivery scan is 47 hours old, a lost parcel claim opens at 48". Computed by the same
+functions the guardrail uses, so the plan and the guardrail can never read a number two ways.
+`retrieve` already does this for dates, so that the model "never does date maths". This extends
+the same rule to the policy's thresholds. It would be its own version.
+
+**Also open after v13.** `gold_006`, the checker's note read as "not covered". `gold_061` and
+`gold_108`, the reply checker refusing replies the policy and the order support, entry 12.
+`gold_099`, two orders in one ticket, where the classifier names one and the order scope check
+refuses an action on the other.
+
+**Status.** Open. No money moved on any of these tickets.

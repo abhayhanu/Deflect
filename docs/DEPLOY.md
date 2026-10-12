@@ -9,23 +9,22 @@ who has never deployed anything. This file is the short version.
 
 ## Before anything is public
 
-The demo runs `gemini-3.5-flash-lite` with Jev classifying and checking. That setup was
-measured as v9 on 7 October 2026: the full run passes the gate with escalation recall 0.97,
-29 of 30, and the lowest of three passes of the escalation subset is 0.97 too. It passes with
-no room to spare, and the one missed ticket is the same one in three runs of four,
-`docs/FAILURES.md` entry 20. v10 is the change aimed at it and is not measured yet.
+The demo runs `gemini-3.5-flash-lite` with Jev classifying and checking. The version to deploy
+is v13, commit `e6b3a2d`, measured on 9 October 2026: escalation recall 1.00 on the full run and
+on all three passes of the escalation subset, decision accuracy 0.93, deflection 0.68. All ten
+preloaded demo tickets were handled as their labels say.
 
 Deploy a version only when its full run passes the gate and the lowest of three passes of the
 escalation subset does too. One passing run can be luck, and a demo is public. Commit first, so
 the results files name the code they measured:
 
 ```bash
-python -m evals.run --subset escalation --reseed --anchor 2026-10-01T10:00:00+00:00 --provider gemini --classifier jev --checker jev --out results_v10_escalation_1.json
-python -m evals.run --subset escalation --reseed --anchor 2026-10-01T10:00:00+00:00 --provider gemini --classifier jev --checker jev --out results_v10_escalation_2.json
-python -m evals.run --subset escalation --reseed --anchor 2026-10-01T10:00:00+00:00 --provider gemini --classifier jev --checker jev --out results_v10_escalation_3.json
-python -m evals.stability results_v10_escalation_1.json results_v10_escalation_2.json results_v10_escalation_3.json
-python -m evals.run --subset full --reseed --anchor 2026-10-01T10:00:00+00:00 --provider gemini --classifier jev --checker jev --out results_v10_gemini_jev.json
-python -m evals.gate results_v10_gemini_jev.json
+python -m evals.run --subset escalation --reseed --anchor 2026-10-01T10:00:00+00:00 --provider gemini --classifier jev --checker jev --out results_vN_escalation_1.json
+python -m evals.run --subset escalation --reseed --anchor 2026-10-01T10:00:00+00:00 --provider gemini --classifier jev --checker jev --out results_vN_escalation_2.json
+python -m evals.run --subset escalation --reseed --anchor 2026-10-01T10:00:00+00:00 --provider gemini --classifier jev --checker jev --out results_vN_escalation_3.json
+python -m evals.stability results_vN_escalation_1.json results_vN_escalation_2.json results_vN_escalation_3.json
+python -m evals.run --subset full --reseed --anchor 2026-10-01T10:00:00+00:00 --provider gemini --classifier jev --checker jev --out results_vN_gemini_jev.json
+python -m evals.gate results_vN_gemini_jev.json
 ```
 
 The numbers in the README's first line come from the full run's file of the version deployed.
@@ -205,6 +204,10 @@ LangSmith first.
 The start script only starts what you did not bring. Set `DATABASE_URL` and it leaves Postgres
 alone. Set `QDRANT_URL`, with `QDRANT_API_KEY` for a hosted one, and it leaves Qdrant alone. The
 seed runs without a reset, so a database you brought keeps its tickets across restarts.
+
+A database you bring must use the UTF8 encoding, as hosted Postgres does by default. The image
+creates its own with `--encoding=UTF8`, because the image sets no locale and `initdb` would
+otherwise pick SQL_ASCII. The seed stops with a message naming the encoding if it is not UTF8.
 
 ## Before you show it to anyone
 

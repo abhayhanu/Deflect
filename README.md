@@ -2,10 +2,9 @@
 
 A support operations agent with a reliability harness. It reads a customer ticket, looks up the policy and the real order, decides whether to answer, act or escalate, and acts through its own MCP server, with evals, guardrails and tracing around it.
 
-[![evals](https://github.com/abhayhanu/Deflect/actions/workflows/evals.yml/badge.svg)](https://github.com/abhayhanu/Deflect/actions/workflows/evals.yml)
-[![tests](https://github.com/abhayhanu/Deflect/actions/workflows/tests.yml/badge.svg)](https://github.com/abhayhanu/Deflect/actions/workflows/tests.yml)
+**[Try the live demo](https://deflect-244590732599.asia-south1.run.app)**: ten tickets already run through the agent, a refund waiting for you to approve or deny, and the eval history. The shop data is made up. If nobody has visited for a while, the first load takes about a minute while it wakes up.
 
-> **Status:** Phase 5 of 5, in progress. On 120 labelled tickets with a local 7B model: intent accuracy 0.93, escalation recall 1.00 (30 of 30), forbidden tool rate 0.00 including 18 adversarial tickets, deflection 0.23. On a hosted model the same tickets take 6.6 s at p95 and Rs 0.17 each, and the latest run passes the gate with escalation recall 1.00, 30 of 30, in four runs out of four. It took two failed runs to get there, [docs/FAILURES.md](docs/FAILURES.md) entries 17 and 18, and the last fix cost usefulness: deflection fell from 0.61 to 0.54, entry 21. Every pull request runs a 30 ticket eval and fails if a safety number drops. Every ticket is one OpenTelemetry trace with personal details removed before it leaves the process. Every version's scores are in [docs/EVALS.md](docs/EVALS.md), what went wrong along the way is in [docs/FAILURES.md](docs/FAILURES.md), and how it fits together is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+> **Status:** v13 is live at the link above. On 120 labelled tickets with a local 7B model: intent accuracy 0.93, escalation recall 1.00 (30 of 30), forbidden tool rate 0.00 including 18 adversarial tickets, deflection 0.23. On a hosted model the same tickets take 6.2 s at p95 and Rs 0.18 each, and the latest run passes the gate with escalation recall 1.00, 30 of 30, in four runs out of four, decision accuracy 0.93, action correctness 0.93 and deflection 0.68. It took two failed runs and one that traded one number for another to get there, [docs/FAILURES.md](docs/FAILURES.md) entries 17 to 22. A gate, `evals/gate.py`, fails any run where a safety number drops, and the deployed version passed it on all 120 tickets and on three repeat runs of the 30 that must reach a person. Every ticket is one OpenTelemetry trace with personal details removed before it leaves the process. Every version's scores are in [docs/EVALS.md](docs/EVALS.md), what went wrong along the way is in [docs/FAILURES.md](docs/FAILURES.md), and how it fits together is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ## See a ticket being handled
 
@@ -19,7 +18,7 @@ The console has four screens.
 - **Inbox.** Every ticket with its intent, how it ended and what it cost.
 - **Run view.** The path one ticket took, node by node: what was redacted, how it was classified, which policy sections were found, what the plan chose, what the guardrail said, the tool call with its arguments and result, the draft, the check, the reply. A refused action is shown with all ten guardrail checks in the order they ran, marked passed, blocked or not reached.
 - **Approval queue.** Refunds waiting for a person, with the amount, the policy cited and approve and deny.
-- **Metrics.** The ten targets against the last recorded version, every version on one chart, and the same tickets on different models.
+- **Metrics.** The ten targets against the newest version, every version on a chart, one chart for each setup, and the same tickets on different models.
 
 The run view is not a log that was written on the side. It is read back from the LangGraph checkpoints and the audit log each time, so it cannot say something the run did not do. It never shows a personal detail: the inbox and the run view are sent the same placeholders the model got.
 
@@ -27,7 +26,7 @@ The run view is not a log that was written on the side. It is read back from the
 
 ## The live demo
 
-`DEFLECT_DEMO=1` loads ten tickets at startup: clean answers, actions, a refund that waits for approval, a safety report and an injection attempt. It also turns on a stricter rate limit and a daily model budget. The `Dockerfile` builds one image with the API, the console, Postgres and Qdrant in it. [docs/DEPLOY.md](docs/DEPLOY.md) has the steps for Google Cloud Run and for a Hugging Face Space.
+It runs at [deflect-244590732599.asia-south1.run.app](https://deflect-244590732599.asia-south1.run.app) on Google Cloud Run, with Gemini planning and drafting and Jev classifying and checking replies. `DEFLECT_DEMO=1` loads ten tickets at startup: clean answers, actions, a refund that waits for approval, a safety report and an injection attempt. It also turns on a stricter rate limit and a daily model budget. The `Dockerfile` builds one image with the API, the console, Postgres and Qdrant in it. [docs/DEPLOY.md](docs/DEPLOY.md) has the steps for Google Cloud Run and for a Hugging Face Space.
 
 ## Quick start
 
@@ -56,13 +55,13 @@ python -m evals.gate results.json          # exits 1 and names the metric if a t
 python -m evals.judge results.json         # a hosted model scores the replies, needs an API key
 ```
 
-The gate is what CI runs on every pull request. Escalation recall and the forbidden tool rate are hard gates. Deflection, the share of tickets resolved without a person, is reported and deliberately never gated: gating it would push every future change toward resolving more, which is how an agent ends up refunding things that needed a human. Deflection is what gets reported, escalation recall is what gets defended.
+Every version has to pass the gate before it is deployed, and it is the check CI will run on every pull request. Escalation recall and the forbidden tool rate are hard gates. Deflection, the share of tickets resolved without a person, is reported and deliberately never gated: gating it would push every future change toward resolving more, which is how an agent ends up refunding things that needed a human. Deflection is what gets reported, escalation recall is what gets defended.
 
 The judge scores replies only, on a fixed rubric. It is shown what the agent was shown, the message, the policy excerpts, the order record and the action taken, and never the labels or the reference reply. Whether the right action ran is measured in code, because a model grading its own family of model is not evidence. The judge itself is checked against 20 replies graded by hand, and the agreement is reported in [docs/EVALS.md](docs/EVALS.md).
 
 ## Every failure becomes a permanent test
 
-When a real run shows a failure, it is written up in [docs/FAILURES.md](docs/FAILURES.md) with the tickets, the cause and the fix. The ticket that exposed it is tagged `regression` in the golden set, and where the failure can be counted, the count becomes a metric that the CI gate holds at zero. So the same mistake cannot come back quietly: `python -m evals.run --subset regression --reseed` replays every one of them, and a fix that stops working turns the build red. Seventeen entries so far, among them a refund issued outside its policy window, a reply that announced a cancellation that never happened, a customer who was refunded and never told, and two still open.
+When a real run shows a failure, it is written up in [docs/FAILURES.md](docs/FAILURES.md) with the tickets, the cause and the fix. The ticket that exposed it is tagged `regression` in the golden set, and where the failure can be counted, the count becomes a metric that the gate holds at zero. So the same mistake cannot come back quietly: `python -m evals.run --subset regression --reseed` replays every one of them, and a fix that stops working fails the gate. Twenty two entries so far, among them a refund issued outside its policy window, a reply that announced a cancellation that never happened, a customer who was refunded and never told, and two still open.
 
 ## Every ticket is a trace
 
@@ -136,7 +135,7 @@ The agent connects to Postgres as its own role, `deflect_app`. A migration grant
 | `agent/tracing.py` | OpenTelemetry spans for every node, tool call and model call, redacted, exported to Langfuse, LangSmith or both. |
 | `evals/run.py` | Runs the golden tickets, plays the approving person, writes every outcome to `results.json`. |
 | `evals/metrics.py` | The ten headline metrics, per ticket category, plus the counts of fixed failures. |
-| `evals/gate.py` | The CI gate. Exits non zero and names the metric when a threshold is breached, or when a stand in model classified or checked part of the run. |
+| `evals/gate.py` | The gate. Exits non zero and names the metric when a threshold is breached, or when a stand in model classified or checked part of the run. |
 | `evals/judge.py` | A hosted model scores each reply on accuracy, completeness, tone and restraint. |
 | `evals/judge_agreement.py` | Compares the judge with 20 replies graded by hand. |
 | `evals/compare.py` | Puts full runs on different models side by side. |
@@ -148,7 +147,6 @@ The agent connects to Postgres as its own role, `deflect_app`. A migration grant
 | `evals/isolate.py` | Runs the retriever, the planner or the generator alone, with the steps before it replaced by the labels, and with policy excerpts from the labels or from the real search. |
 | `evals/report.py` | Appends a row to each table in `docs/EVALS.md`. Never overwrites. |
 | `evals/history.py` | Reads the tables in `docs/EVALS.md` back as data, for the console's metrics screen. |
-| `.github/workflows/evals.yml` | Smoke eval and gate on every pull request, full suite and judge every night. |
 | `docs/ARCHITECTURE.md` | How it fits together, what a trace holds, and Langfuse compared with LangSmith. |
 | `docs/FAILURES.md` | Real failures from the eval runs, with causes, fixes and numbers. |
 | `data/policies/` | 8 support policies. Their `doc_id` is what the agent cites. |

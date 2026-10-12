@@ -177,18 +177,21 @@ are compared, a small local one and a hosted one, with the local one under each 
 classifier it was recorded with. A larger local model was in the first plan and was left out.
 
 <!-- model comparison start -->
-| Configuration | Cases | Checker | Intent acc | Decision acc | Esc. recall | Action correct | Forbidden tool rate | Deflection | Reply quality | Parse fail rate | Cost per ticket | Latency p50 | Latency p95 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| ollama qwen2.5:7b | 120 full | on | 0.88 | 0.42 | 0.90 | 0.52 | 0.00 | 0.22 | 3.90 | 0.00 | Rs 0.00 | 114.2 s | 437.4 s |
-| ollama qwen2.5:7b | 120 full | on, jev jev-latest | 0.88 | 0.53 | 1.00 | 0.52 | 0.00 | 0.28 | 4.57 | 0.00 | Rs 0.00 | 132.9 s | 407.4 s |
-| ollama qwen2.5:7b, classified by jev jev-latest | 120 full | on, jev jev-latest | 0.93 | 0.47 | 1.00 | 0.52 | 0.00 | 0.23 | 4.43 | 0.00 | Rs 0.01 | 117.1 s | 449.0 s |
-| gemini gemini-3.5-flash-lite | 120 full | on | 0.96 | 0.76 | 0.90 | 0.71 | 0.00 | 0.56 | n/a | 0.00 | Rs 0.20 | 3.8 s | 7.2 s |
-| gemini gemini-3.5-flash-lite, classified by jev jev-latest, before v8 | 120 full | on, jev jev-latest | 0.93 | 0.80 | 0.90 | 0.76 | 0.00 | 0.60 | n/a | 0.00 | Rs 0.15 | 2.9 s | 5.4 s |
-| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v8 | 120 full | on, jev jev-latest | 0.93 | 0.82 | 0.93 | 0.79 | 0.00 | 0.61 | n/a | 0.00 | Rs 0.14 | 3.2 s | 6.2 s |
-| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v9 | 120 full | on, jev jev-latest | 0.93 | 0.84 | 0.97 | 0.83 | 0.00 | 0.61 | n/a | 0.00 | Rs 0.16 | 3.4 s | 6.7 s |
-| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v10 | 120 full | on, jev jev-latest | 0.93 | 0.79 | 1.00 | 0.74 | 0.00 | 0.54 | n/a | 0.00 | Rs 0.17 | 3.3 s | 6.6 s |
+| Configuration | Cases | Checker | Intent acc | Decision acc | Esc. recall | Esc. precision | Grounded | Action correct | Forbidden tool rate | Deflection | Reply quality | Parse fail rate | Cost per ticket | Latency p50 | Latency p95 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| ollama qwen2.5:7b | 120 full | on | 0.88 | 0.42 | 0.90 | 0.29 | 1.00 | 0.52 | 0.00 | 0.22 | 3.90 | 0.00 | Rs 0.00 | 114.2 s | 437.4 s |
+| ollama qwen2.5:7b | 120 full | on, jev jev-latest | 0.88 | 0.53 | 1.00 | 0.35 | 1.00 | 0.52 | 0.00 | 0.28 | 4.57 | 0.00 | Rs 0.00 | 132.9 s | 407.4 s |
+| ollama qwen2.5:7b, classified by jev jev-latest | 120 full | on, jev jev-latest | 0.93 | 0.47 | 1.00 | 0.32 | 1.00 | 0.52 | 0.00 | 0.23 | 4.43 | 0.00 | Rs 0.01 | 117.1 s | 449.0 s |
+| gemini gemini-3.5-flash-lite | 120 full | on | 0.96 | 0.76 | 0.90 | 0.51 | 1.00 | 0.71 | 0.00 | 0.56 | n/a | 0.00 | Rs 0.20 | 3.8 s | 7.2 s |
+| gemini gemini-3.5-flash-lite, classified by jev jev-latest, before v8 | 120 full | on, jev jev-latest | 0.93 | 0.80 | 0.90 | 0.56 | 1.00 | 0.76 | 0.00 | 0.60 | n/a | 0.00 | Rs 0.15 | 2.9 s | 5.4 s |
+| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v8 | 120 full | on, jev jev-latest | 0.93 | 0.82 | 0.93 | 0.60 | 1.00 | 0.79 | 0.00 | 0.61 | n/a | 0.00 | Rs 0.14 | 3.2 s | 6.2 s |
+| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v9 | 120 full | on, jev jev-latest | 0.93 | 0.84 | 0.97 | 0.62 | 1.00 | 0.83 | 0.00 | 0.61 | n/a | 0.00 | Rs 0.16 | 3.4 s | 6.7 s |
+| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v10 | 120 full | on, jev jev-latest | 0.93 | 0.79 | 1.00 | 0.55 | 1.00 | 0.74 | 0.00 | 0.54 | n/a | 0.00 | Rs 0.17 | 3.3 s | 6.6 s |
+| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v11 | 120 full | on, jev jev-latest | 0.93 | 0.85 | 1.00 | 0.62 | 1.00 | 0.93 | 0.00 | 0.60 | n/a | 0.00 | Rs 0.18 | 3.4 s | 6.7 s |
+| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v12 | 120 full | on, jev jev-latest | 0.93 | 0.90 | 1.00 | 0.71 | 1.00 | 0.95 | 0.00 | 0.65 | n/a | 0.00 | Rs 0.17 | 3.4 s | 6.1 s |
+| gemini gemini-3.5-flash-lite, classified by jev jev-latest, v13 | 120 full | on, jev jev-latest | 0.93 | 0.93 | 1.00 | 0.77 | 1.00 | 0.93 | 0.00 | 0.68 | n/a | 0.00 | Rs 0.18 | 3.5 s | 6.2 s |
 
-Built on 2026-10-09 from `results_v5.json`, `results_v6.json`, `results_v7.json`, `results_gemini_full_v2.json`, `results_gemini_jev.json`, `results_v8_gemini_jev.json`, `results_v9_gemini_jev.json`, `results_v10_gemini_jev.json`.
+Built on 2026-10-09 from `results_v5.json`, `results_v6.json`, `results_v7.json`, `results_gemini_full_v2.json`, `results_gemini_jev.json`, `results_v8_gemini_jev.json`, `results_v9_gemini_jev.json`, `results_v10_gemini_jev.json`, `results_v11_gemini_jev.json`, `results_v12_gemini_jev.json`, `results_v13_gemini_jev.json`.
 <!-- model comparison end -->
 
 ## Component level
@@ -688,6 +691,41 @@ that was a stand in, and the probability of every intent when the classifier giv
   three causes and the three versions that follow, v11 to v13.
 - The v10 results files name commit `1ecc909`, which does not contain the v9 or v10 code. As
   with v9, the change was not committed before the run.
+- v11 is not recorded yet. It changes one thing: the plan's two action fields, `tool_name` and
+  `tool_args`, are required in its schema, where they had a default. `docs/FAILURES.md` entry 21.
+  What to read beside the gate: tickets ending `escalated_act_without_tool`, which was 9 in v10,
+  then action correctness and deflection, with escalation recall held at 1.00 on every pass.
+- v11 was run on 9 October 2026 and is the last row of the model comparison. Its results name
+  commit `301a4e6`, the code they measured. `escalated_act_without_tool` went from 9 to 0.
+  Action correctness 0.93 and decision accuracy 0.85 are the best of any run, deflection is back
+  to 0.60, and escalation recall is 1.00 on the full run and on all three passes.
+  `docs/FAILURES.md` entry 21.
+- v12 is not recorded yet. It changes one thing: rule 8 of the plan's prompt, for a ticket whose
+  order was not found, asks the plan to cite the policy for what the customer wants, so the
+  checker's citation rule stops refusing it. What to read: `gold_073`, `gold_074` and `gold_077`
+  should be answered, groundedness should stay at 1.00, and escalation recall at 1.00 on every pass.
+- v12 was run on 9 October 2026, commit `cf5885e`, and is the last row of the model comparison.
+  Every customer without a valid order id was answered, and the quality numbers are the best
+  of any run: decision accuracy 0.90, action correctness 0.95, deflection 0.65, escalation
+  precision 0.71, escalation recall 1.00 on the full run and all three passes.
+- v13 is not recorded yet. It changes one thing: rule 2 of the plan's prompt says that a policy
+  which refuses a request covers it, and that the escalation rules still come first. What to
+  read: escalation recall on every pass before anything else, then `gold_006`, `gold_042`,
+  `gold_084`, `gold_089` and `gold_108`, then deflection.
+- v13 was run on 9 October 2026, commit `e6b3a2d`, and is the last row of the model comparison.
+  Escalation recall 1.00 on all three passes and the full run, decision accuracy 0.93,
+  deflection 0.68 and escalation precision 0.77, the best of any run. Action correctness 0.93,
+  one ticket below v12. It is the version to deploy. `docs/FAILURES.md` entries 21 and 22.
+- `plans_without_tool` is a new count, the plans that chose to act and named no tool. The gate
+  holds it at zero. It was 5 in v9, 9 in v10 and 0 from v11 on.
 - The console's metrics screen reads this file. The targets table, the version chart and the
   model comparison there are these tables, parsed by `evals/history.py`, so there is one place
   a number lives.
+- From v8 a version is a row of the model comparison whose label is its version, as in
+  `"v13=results_v13_gemini_jev.json"`, because the version table keeps `qwen2.5:7b` only. Until
+  9 October the console read the version table alone, so its targets showed v7 with three
+  targets missed while v13 meets them all. The targets now show the newest version in either
+  table, the comparison versions have a chart of their own, and the comparison has two more
+  columns, escalation precision and groundedness, which the targets need. The table was rebuilt
+  from the same eleven files with the same labels, so every other cell is unchanged. A row
+  labelled anything other than a version, like `before v8`, stays a comparison.
